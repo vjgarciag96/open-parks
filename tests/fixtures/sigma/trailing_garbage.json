@@ -1,0 +1,67 @@
+{
+  "displayFieldName": "ZONA_VERDE",
+  "fieldAliases": {
+    "ZONA_VERDE": "Nombre parque",
+    "ALERTA_DESCRIPCION": "Estado",
+    "FECHA_INCIDENCIA": "Fecha(s) incidencia",
+    "HORARIO_INCIDENCIA": "Horario incidencia",
+    "PREVISION_APERTURA": "Prevision apertura",
+    "OBSERVACIONES": "Observaciones",
+    "OBJECTID": "Id"
+  },
+  "fields": [
+    {
+      "name": "ZONA_VERDE",
+      "type": "esriFieldTypeString",
+      "alias": "Nombre parque",
+      "length": 50
+    },
+    {
+      "name": "ALERTA_DESCRIPCION",
+      "type": "esriFieldTypeSmallInteger",
+      "alias": "Estado"
+    },
+    {
+      "name": "FECHA_INCIDENCIA",
+      "type": "esriFieldTypeString",
+      "alias": "Fecha(s) incidencia",
+      "length": 100
+    },
+    {
+      "name": "HORARIO_INCIDENCIA",
+      "type": "esriFieldTypeString",
+      "alias": "Horario incidencia",
+      "length": 50
+    },
+    {
+      "name": "PREVISION_APERTURA",
+      "type": "esriFieldTypeSmallInteger",
+      "alias": "Prevision apertura"
+    },
+    {
+      "name": "OBSERVACIONES",
+      "type": "esriFieldTypeString",
+      "alias": "Observaciones",
+      "length": 500
+    },
+    {
+      "name": "OBJECTID",
+      "type": "esriFieldTypeOID",
+      "alias": "Id"
+    }
+  ],
+  "features": [
+    {
+      "attributes": {
+        "ZONA_VERDE": "Jardines del Buen Retiro",
+        "ALERTA_DESCRIPCION": 1,
+        "FECHA_INCIDENCIA": "10/10/2026",
+        "HORARIO_INCIDENCIA": null,
+        "PREVISION_APERTURA": null,
+        "OBSERVACIONES": null,
+        "OBJECTID": 1
+      }
+    }
+  ]
+}
+<html><body>502 Bad Gateway</body></html>
