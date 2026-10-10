@@ -1,10 +1,8 @@
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::sigma::{self, DecodeError};
 
-fn fixture(name: &str) -> String {
-    let path = format!("{}/tests/fixtures/sigma/{name}", env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
-}
+mod common;
+use common::fixture;
 
 #[test]
 fn open_park_decodes_with_its_date_and_no_other_details() {

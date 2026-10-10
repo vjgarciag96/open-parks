@@ -1,3 +1,5 @@
+use serde::{Serialize, Serializer};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParkStatus {
     pub code: AlertCode,
@@ -7,7 +9,8 @@ pub struct ParkStatus {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AlertCode {
     Open,
     Incidents,
@@ -19,13 +22,16 @@ pub enum AlertCode {
     RedAlertClosure,
     RedAlertRestrictions,
     Closed,
+    #[serde(untagged, serialize_with = "unknown")]
     Unknown(i16),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ReopeningForecast {
     AfterInspections,
     SeeNotes,
+    #[serde(untagged, serialize_with = "unknown")]
     Unknown(i16),
 }
 
@@ -46,7 +52,8 @@ impl AlertCode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Verdict {
     Open,
     OpenWithRestrictions,
@@ -55,4 +62,10 @@ pub enum Verdict {
     ClosureForecast,
     Closed,
     Unknown,
+}
+
+// Clients can't act on a value SIGMA doesn't document, so the raw number
+// stays internal.
+fn unknown<S: Serializer>(_raw: &i16, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str("unknown")
 }
