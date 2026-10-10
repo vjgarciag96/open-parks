@@ -28,3 +28,31 @@ pub enum ReopeningForecast {
     SeeNotes,
     Unknown(i16),
 }
+
+impl AlertCode {
+    pub fn verdict(self) -> Verdict {
+        match self {
+            AlertCode::Open => Verdict::Open,
+            // SIGMA describes code 2 as incidents that affect use of the
+            // park, not a closure, so it reads as a restriction.
+            AlertCode::Incidents | AlertCode::YellowAlert | AlertCode::RedAlertRestrictions => {
+                Verdict::OpenWithRestrictions
+            }
+            AlertCode::OrangeAlert => Verdict::OpenStayNotAdvised,
+            AlertCode::RedAlertClosure => Verdict::ClosureForecast,
+            AlertCode::Closed => Verdict::Closed,
+            AlertCode::Unknown(_) => Verdict::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    Open,
+    OpenWithRestrictions,
+    /// Open with restrictions, but staying in the park is not advised.
+    OpenStayNotAdvised,
+    ClosureForecast,
+    Closed,
+    Unknown,
+}
