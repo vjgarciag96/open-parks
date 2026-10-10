@@ -3,6 +3,9 @@ use serde::de::DeserializeOwned;
 
 use crate::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 
+mod client;
+pub use client::{Client, FetchError};
+
 pub fn decode(json: &str) -> Result<ParkStatus, DecodeError> {
     // SIGMA can send an error body with a 200 status. Checking for one first
     // lets the query response decode strictly, so errors name the bad field.
@@ -35,9 +38,15 @@ pub enum DecodeError {
     #[error("the response has {0} features, expected one")]
     MultipleFeatures(usize),
     #[error("malformed response: {0}")]
-    Malformed(#[from] serde_path_to_error::Error<serde_json::Error>),
+    Malformed(serde_path_to_error::Error<serde_json::Error>),
     #[error("SIGMA error {code}: {message}")]
     Upstream { code: i32, message: String },
+}
+
+impl From<serde_path_to_error::Error<serde_json::Error>> for DecodeError {
+    fn from(error: serde_path_to_error::Error<serde_json::Error>) -> Self {
+        DecodeError::Malformed(error)
+    }
 }
 
 #[derive(Deserialize)]
