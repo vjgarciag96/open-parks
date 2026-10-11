@@ -1,28 +1,52 @@
+use std::net::SocketAddr;
+use std::time::Duration;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
+use axum::response::Response;
 use http_body_util::BodyExt;
 use open_parks::{api, sigma};
+use reqwest::Url;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
 mod common;
+mod fake_upstream;
+mod timeouts;
 use common::fixture;
+use fake_upstream::{serving, serving_json, url_for};
+use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
-async fn get(fixture_name: &str, uri: &str) -> axum::response::Response {
-    let status = sigma::decode(&fixture(fixture_name)).unwrap();
-    api::router(status)
+const RETIRO_STATUS: &str = "/api/v1/parks/retiro/status";
+
+async fn get(upstream: Url, timeout: Duration, uri: &str) -> Response {
+    let client = sigma::Client::new(upstream, timeout).unwrap();
+    api::router(client)
         .oneshot(Request::get(uri).body(Body::empty()).unwrap())
         .await
         .unwrap()
 }
 
-async fn get_retiro_status(fixture_name: &str) -> axum::response::Response {
-    get(fixture_name, "/api/v1/parks/retiro/status").await
+async fn get_retiro_status(fixture_name: &str) -> Response {
+    get(
+        serving_json(fixture(fixture_name)).await,
+        GENEROUS_TIMEOUT,
+        RETIRO_STATUS,
+    )
+    .await
 }
 
-async fn json_body(response: axum::response::Response) -> Value {
+async fn json_body(response: Response) -> Value {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
+}
+
+async fn assert_upstream_error(response: Response) {
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(
+        json_body(response).await,
+        json!({ "error": "upstream_error" })
+    );
 }
 
 #[tokio::test]
@@ -127,7 +151,59 @@ async fn absent_details_are_served_as_null() {
 
 #[tokio::test]
 async fn other_parks_are_not_found() {
-    let response = get("code_1_open.json", "/api/v1/parks/casa-de-campo/status").await;
+    let response = get(
+        serving_json(fixture("code_1_open.json")).await,
+        GENEROUS_TIMEOUT,
+        "/api/v1/parks/casa-de-campo/status",
+    )
+    .await;
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_failing_upstream_is_a_bad_gateway() {
+    let upstream = serving(|| async { StatusCode::SERVICE_UNAVAILABLE }).await;
+
+    let response = get(upstream, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+
+    assert_upstream_error(response).await;
+}
+
+#[tokio::test]
+async fn an_undecodable_upstream_response_is_a_bad_gateway() {
+    let response = get_retiro_status("malformed.json").await;
+
+    assert_upstream_error(response).await;
+}
+
+#[tokio::test]
+async fn an_oversized_upstream_response_is_a_bad_gateway() {
+    let upstream = serving_json(" ".repeat(8 * 1024 * 1024)).await;
+
+    let response = get(upstream, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+
+    assert_upstream_error(response).await;
+}
+
+#[tokio::test]
+async fn an_unreachable_upstream_is_a_bad_gateway() {
+    let unreachable = url_for(SocketAddr::from(([127, 0, 0, 1], 0)));
+
+    let response = get(unreachable, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+
+    assert_upstream_error(response).await;
+}
+
+#[tokio::test]
+async fn an_upstream_that_never_responds_is_a_gateway_timeout() {
+    let upstream = serving(std::future::pending::<()>).await;
+
+    let response = get(upstream, SHORT_TIMEOUT, RETIRO_STATUS).await;
+
+    assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
+    assert_eq!(
+        json_body(response).await,
+        json!({ "error": "upstream_timeout" })
+    );
 }

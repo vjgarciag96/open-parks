@@ -20,10 +20,11 @@ pub struct Client {
 
 impl Client {
     pub fn live() -> Result<Self, reqwest::Error> {
-        Self::new(
-            Url::parse(QUERY_ENDPOINT).expect("QUERY_ENDPOINT is valid"),
-            TIMEOUT,
-        )
+        Self::at(Url::parse(QUERY_ENDPOINT).expect("QUERY_ENDPOINT is valid"))
+    }
+
+    pub fn at(query_endpoint: Url) -> Result<Self, reqwest::Error> {
+        Self::new(query_endpoint, TIMEOUT)
     }
 
     pub fn new(query_endpoint: Url, timeout: Duration) -> Result<Self, reqwest::Error> {
