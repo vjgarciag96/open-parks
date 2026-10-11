@@ -3,6 +3,7 @@ use std::{env, io};
 
 use open_parks::{api, poller, sigma};
 use reqwest::Url;
+use tokio::signal::unix::{SignalKind, signal};
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:3000";
 const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
@@ -15,8 +16,16 @@ async fn main() -> io::Result<()> {
         .await
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
     println!("listening on http://{}", listener.local_addr()?);
+    let mut terminate = signal(SignalKind::terminate())?;
     let latest = poller::start(sigma, REFRESH_INTERVAL).await;
-    axum::serve(listener, api::router(latest)).await
+    axum::serve(listener, api::router(latest))
+        .with_graceful_shutdown(async move {
+            tokio::select! {
+                _ = terminate.recv() => {}
+                _ = tokio::signal::ctrl_c() => {}
+            }
+        })
+        .await
 }
 
 fn sigma_client() -> io::Result<sigma::Client> {

@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
 
 use reqwest::Url;
 use serde_json::{Value, json};
@@ -72,4 +73,30 @@ fn the_binary_serves_retiros_status_from_sigma_over_http() {
             "notes": "El parque permanecerá cerrado hasta la retirada de las ramas caídas.",
         })
     );
+}
+
+fn terminate(server: &mut Server) -> ExitStatus {
+    let status = Command::new("kill")
+        .args(["-TERM", &server.0.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success(), "kill: {status}");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(status) = server.0.try_wait().unwrap() {
+            return status;
+        }
+        assert!(Instant::now() < deadline, "still running after SIGTERM");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn the_binary_exits_cleanly_on_sigterm() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let (mut server, address) = start_server(&sigma);
+    get(&address, "/api/v1/parks/retiro/status");
+
+    assert!(terminate(&mut server).success());
 }
