@@ -16,6 +16,11 @@ cargo clippy --all-targets -- -D warnings
 
 CI runs the last three on every push to `main` and on pull requests.
 
+To see the page in every state, run `cargo run --example preview` and open
+the `target/preview/index.html` it prints. It renders both languages for every
+fixture in `tests/fixtures/sigma` that decodes, the most detailed status at a
+few ages (including stale), and both error pages, with no server or SIGMA.
+
 ## Container
 
 ```sh
