@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::{env, io};
 
 use jiff::Timestamp;
-use open_parks::{api, poller, sigma};
+use open_parks::{api, page, poller, sigma};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
 
@@ -19,7 +19,8 @@ async fn main() -> io::Result<()> {
     println!("listening on http://{}", listener.local_addr()?);
     let mut terminate = signal(SignalKind::terminate())?;
     let latest = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
-    axum::serve(listener, api::router(latest))
+    let app = api::router(latest.clone()).merge(page::router(latest));
+    axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             tokio::select! {
                 _ = terminate.recv() => {}
