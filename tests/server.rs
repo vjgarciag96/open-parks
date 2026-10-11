@@ -78,6 +78,19 @@ fn the_binary_serves_retiros_status_from_sigma_over_http() {
     );
 }
 
+#[test]
+fn the_binary_serves_retiros_status_page() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_7_closed.json")));
+    let (_server, address) = start_server(&sigma);
+
+    let response = get(&address, "/");
+
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
+    assert!(body.contains("<h1>Cerrado</h1>"), "{body}");
+}
+
 fn terminate(server: &mut Server) -> ExitStatus {
     let status = Command::new("kill")
         .args(["-TERM", &server.0.id().to_string()])

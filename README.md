@@ -27,11 +27,17 @@ The image holds only the static binary and listens on port 3000. CI builds it
 on every pull request and publishes `ghcr.io/vjgarciag96/open-parks:<commit>`
 on every push to `main`.
 
-## API
+## Serving
 
 `cargo run` serves on `127.0.0.1:3000`; set `OPEN_PARKS_ADDRESS` to listen
 elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 `OPEN_PARKS_SIGMA_QUERY_URL` to query another endpoint, such as a local fake.
+
+## Page
+
+`GET /` is a server-rendered HTML page with no JavaScript and inline CSS.
+
+## API
 
 `GET /api/v1/parks/retiro/status` returns Retiro's status as machine values;
 clients localise them.

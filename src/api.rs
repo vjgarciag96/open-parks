@@ -25,14 +25,18 @@ async fn retiro_status(State(latest): State<watch::Receiver<Latest>>) -> Respons
 }
 
 fn upstream_failure(error: &FetchError) -> Response {
-    let (status, error) = match error {
+    let (status, error) = upstream_failure_status(error);
+    (status, Json(ErrorResponse { error })).into_response()
+}
+
+pub(crate) fn upstream_failure_status(error: &FetchError) -> (StatusCode, ErrorCode) {
+    match error {
         FetchError::Timeout => (StatusCode::GATEWAY_TIMEOUT, ErrorCode::UpstreamTimeout),
         FetchError::Transport(_)
         | FetchError::HttpStatus(_)
         | FetchError::BodyTooLarge
         | FetchError::Decode(_) => (StatusCode::BAD_GATEWAY, ErrorCode::UpstreamError),
-    };
-    (status, Json(ErrorResponse { error })).into_response()
+    }
 }
 
 #[derive(Serialize)]
@@ -67,7 +71,7 @@ struct ErrorResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-enum ErrorCode {
+pub(crate) enum ErrorCode {
     UpstreamTimeout,
     UpstreamError,
 }
