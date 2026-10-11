@@ -19,8 +19,6 @@ use strings::{Lang, Strings};
 
 const STYLE: &str = include_str!("page.css");
 
-/// The status is refreshed every minute, so one this old has missed ten
-/// refreshes in a row.
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
