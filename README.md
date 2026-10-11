@@ -44,7 +44,7 @@ clients localise them.
   "hours": "de 14:00 a 20:00 h",
   "reopening": null,
   "notes": "Cerradas las zonas infantiles, deportivas y de mayores. Suspendidos los eventos al aire libre.",
-  "fetched_at": "2026-10-11T09:30:00.123456Z"
+  "fetched_at": "2026-10-11T09:30:00Z"
 }
 ```
 
@@ -54,7 +54,8 @@ clients localise them.
   `closure_forecast`, `closed` or `unknown`.
 - `reopening`: `after_inspections`, `see_notes`, `unknown` or `null`.
 - `dates`, `hours` and `notes`: SIGMA's free text, or `null` when blank.
-- `fetched_at`: when the status was fetched from SIGMA, in RFC 3339 (UTC).
+- `fetched_at`: when the status was fetched from SIGMA, to the second, in
+  RFC 3339 (UTC).
 
 Requests never query SIGMA. The status is fetched at startup and refreshed
 every minute in the background, and requests are served the latest status

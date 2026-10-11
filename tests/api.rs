@@ -33,7 +33,7 @@ async fn get(latest: watch::Receiver<Latest>, uri: &str) -> Response {
 fn fetched(fixture_name: &str) -> watch::Receiver<Latest> {
     let fetched = Fetched {
         status: sigma::decode(&fixture(fixture_name)).unwrap(),
-        fetched_at: "2026-10-11T09:30:00Z".parse().unwrap(),
+        fetched_at: "2026-10-11T09:30:00.987654321Z".parse().unwrap(),
     };
     watch::channel(Ok(fetched)).1
 }
@@ -86,6 +86,13 @@ async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
             "fetched_at": "2026-10-11T09:30:00Z",
         })
     );
+}
+
+#[tokio::test]
+async fn fetched_at_is_served_to_the_second_it_was_fetched_in() {
+    let body = json_body(get_retiro_status("code_1_open.json").await).await;
+
+    assert_eq!(body["fetched_at"], json!("2026-10-11T09:30:00Z"));
 }
 
 #[tokio::test]
