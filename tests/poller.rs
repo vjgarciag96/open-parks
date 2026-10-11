@@ -5,6 +5,7 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
+use jiff::Timestamp;
 use open_parks::api;
 use open_parks::park_status::AlertCode;
 use open_parks::poller::{self, Latest};
@@ -61,17 +62,38 @@ impl Upstream {
     }
 }
 
+fn fetch_time() -> Timestamp {
+    "2026-10-11T09:30:00Z".parse().unwrap()
+}
+
 async fn start(url: Url, interval: Duration) -> watch::Receiver<Latest> {
-    poller::start(sigma::Client::new(url, GENEROUS_TIMEOUT).unwrap(), interval).await
+    let client = sigma::Client::new(url, GENEROUS_TIMEOUT).unwrap();
+    poller::start(client, interval, fetch_time).await
 }
 
 async fn wait_for_code(latest: &mut watch::Receiver<Latest>, code: AlertCode) {
-    let published =
-        latest.wait_for(|latest| latest.as_ref().is_ok_and(|status| status.code == code));
+    let published = latest.wait_for(|latest| {
+        latest
+            .as_ref()
+            .is_ok_and(|fetched| fetched.status.code == code)
+    });
     tokio::time::timeout(GENEROUS_TIMEOUT, published)
         .await
         .unwrap_or_else(|_| panic!("{code:?} was never published"))
         .unwrap();
+}
+
+// The poller fetches one at a time, so once SIGMA has seen `count` requests,
+// every fetch before the last has been published.
+async fn wait_for_requests(upstream: &Upstream, count: usize) {
+    let seen = async {
+        while upstream.requests() < count {
+            tokio::time::sleep(OFTEN).await;
+        }
+    };
+    tokio::time::timeout(GENEROUS_TIMEOUT, seen)
+        .await
+        .unwrap_or_else(|_| panic!("SIGMA never saw {count} requests"));
 }
 
 #[tokio::test]
@@ -79,9 +101,16 @@ async fn the_first_status_is_fetched_before_start_returns() {
     let latest = start(serving_json(fixture("code_7_closed.json")).await, NEVER).await;
 
     assert_eq!(
-        *latest.borrow().as_ref().unwrap(),
+        latest.borrow().as_ref().unwrap().status,
         sigma::decode(&fixture("code_7_closed.json")).unwrap()
     );
+}
+
+#[tokio::test]
+async fn a_status_carries_when_it_was_fetched() {
+    let latest = start(serving_json(fixture("code_1_open.json")).await, NEVER).await;
+
+    assert_eq!(latest.borrow().as_ref().unwrap().fetched_at, fetch_time());
 }
 
 #[tokio::test]
@@ -110,6 +139,18 @@ async fn a_failed_fetch_is_published_until_a_later_one_succeeds() {
 }
 
 #[tokio::test]
+async fn a_failed_refresh_keeps_the_last_good_status() {
+    let upstream = Upstream::start(Some(fixture("code_7_closed.json"))).await;
+    let latest = start(upstream.url.clone(), OFTEN).await;
+    let last_good = latest.borrow().as_ref().unwrap().clone();
+
+    upstream.serve(None);
+    wait_for_requests(&upstream, upstream.requests() + 2).await;
+
+    assert_eq!(*latest.borrow().as_ref().unwrap(), last_good);
+}
+
+#[tokio::test]
 async fn requests_are_served_without_querying_sigma() {
     let upstream = Upstream::start(Some(fixture("code_1_open.json"))).await;
     let router = api::router(start(upstream.url.clone(), NEVER).await);
@@ -134,7 +175,7 @@ async fn requests_are_served_without_querying_sigma() {
 async fn polling_stops_once_nothing_reads_the_status() {
     let upstream = Upstream::start(Some(fixture("code_1_open.json"))).await;
     let client = sigma::Client::new(upstream.url.clone(), SHORT_TIMEOUT).unwrap();
-    let latest = poller::start(client, OFTEN).await;
+    let latest = poller::start(client, OFTEN, fetch_time).await;
 
     drop(latest);
     tokio::time::sleep(OFTEN + SHORT_TIMEOUT).await;

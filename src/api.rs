@@ -3,11 +3,12 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
+use jiff::Timestamp;
 use serde::Serialize;
 use tokio::sync::watch;
 
-use crate::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
-use crate::poller::Latest;
+use crate::park_status::{AlertCode, ReopeningForecast, Verdict};
+use crate::poller::{Fetched, Latest};
 use crate::sigma::FetchError;
 
 pub fn router(latest: watch::Receiver<Latest>) -> Router {
@@ -18,7 +19,7 @@ pub fn router(latest: watch::Receiver<Latest>) -> Router {
 
 async fn retiro_status(State(latest): State<watch::Receiver<Latest>>) -> Response {
     match &*latest.borrow() {
-        Ok(status) => Json(StatusResponse::from(status)).into_response(),
+        Ok(fetched) => Json(StatusResponse::from(fetched)).into_response(),
         Err(error) => upstream_failure(error),
     }
 }
@@ -42,10 +43,11 @@ struct StatusResponse<'a> {
     hours: Option<&'a str>,
     reopening: Option<ReopeningForecast>,
     notes: Option<&'a str>,
+    fetched_at: Timestamp,
 }
 
-impl<'a> From<&'a ParkStatus> for StatusResponse<'a> {
-    fn from(status: &'a ParkStatus) -> Self {
+impl<'a> From<&'a Fetched> for StatusResponse<'a> {
+    fn from(Fetched { status, fetched_at }: &'a Fetched) -> Self {
         StatusResponse {
             code: status.code,
             verdict: status.code.verdict(),
@@ -53,6 +55,7 @@ impl<'a> From<&'a ParkStatus> for StatusResponse<'a> {
             hours: status.hours.as_deref(),
             reopening: status.reopening,
             notes: status.notes.as_deref(),
+            fetched_at: *fetched_at,
         }
     }
 }

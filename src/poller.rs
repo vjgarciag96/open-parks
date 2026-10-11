@@ -1,28 +1,52 @@
 use std::error::Error;
 use std::time::Duration;
 
+use jiff::Timestamp;
 use tokio::sync::watch;
 
+use crate::clock::Clock;
 use crate::park_status::ParkStatus;
 use crate::sigma::{self, FetchError};
 
-pub type Latest = Result<ParkStatus, FetchError>;
+/// The last status fetched, or, until one is, why the latest fetch failed.
+pub type Latest = Result<Fetched, FetchError>;
 
-pub async fn start(sigma: sigma::Client, interval: Duration) -> watch::Receiver<Latest> {
-    let (latest, receiver) = watch::channel(fetch(&sigma).await);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Fetched {
+    pub status: ParkStatus,
+    pub fetched_at: Timestamp,
+}
+
+pub async fn start(
+    sigma: sigma::Client,
+    interval: Duration,
+    clock: impl Clock,
+) -> watch::Receiver<Latest> {
+    let (latest, receiver) = watch::channel(fetch(&sigma, &clock).await);
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(interval).await;
-            if latest.send(fetch(&sigma).await).is_err() {
+            if latest.is_closed() {
                 return;
             }
+            let fetched = fetch(&sigma, &clock).await;
+            latest.send_if_modified(|published| {
+                if fetched.is_err() && published.is_ok() {
+                    return false;
+                }
+                *published = fetched;
+                true
+            });
         }
     });
     receiver
 }
 
-async fn fetch(sigma: &sigma::Client) -> Latest {
-    let latest = sigma.retiro_park_status().await;
+async fn fetch(sigma: &sigma::Client, clock: &impl Clock) -> Latest {
+    let latest = sigma.retiro_park_status().await.map(|status| Fetched {
+        status,
+        fetched_at: clock.now(),
+    });
     if let Err(error) = &latest {
         eprintln!("fetching Retiro's status: {}", with_sources(error));
     }
