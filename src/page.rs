@@ -1,22 +1,37 @@
+use std::sync::Arc;
+
 use axum::Router;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tokio::sync::watch;
 
-use crate::api::upstream_failure_status;
-use crate::poller::Latest;
+use crate::api::{to_the_second, upstream_failure_status};
+use crate::clock::Clock;
+use crate::park_status::ParkStatus;
+use crate::poller::{Fetched, Latest};
 
 mod strings;
 use strings::{Lang, Strings};
 
 const STYLE: &str = include_str!("page.css");
 
+/// The status is refreshed every minute, so one this old has missed ten
+/// refreshes in a row.
+const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
+
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 
-pub fn router(latest: watch::Receiver<Latest>) -> Router {
+#[derive(Clone)]
+struct Status {
+    latest: watch::Receiver<Latest>,
+    clock: Arc<dyn Clock>,
+}
+
+pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
     Router::new()
         .route(
             "/",
@@ -24,7 +39,10 @@ pub fn router(latest: watch::Receiver<Latest>) -> Router {
         )
         .route("/es", get(async |latest| retiro_status(latest, Lang::Es)))
         .route("/en", get(async |latest| retiro_status(latest, Lang::En)))
-        .with_state(latest)
+        .with_state(Status {
+            latest,
+            clock: Arc::new(clock),
+        })
 }
 
 fn redirect_to_preferred(headers: &HeaderMap) -> Response {
@@ -86,22 +104,88 @@ fn quality(params: &str) -> Option<f32> {
     }
 }
 
-fn retiro_status(State(latest): State<watch::Receiver<Latest>>, lang: Lang) -> Response {
+fn retiro_status(State(Status { latest, clock }): State<Status>, lang: Lang) -> Response {
     let strings = lang.strings();
     let other = lang.other().strings();
     match &*latest.borrow() {
         Ok(fetched) => {
             let answer = (strings.headline)(fetched.status.code.verdict());
-            render(strings, other, answer).into_response()
+            render(
+                strings,
+                other,
+                answer,
+                details(strings, fetched, clock.now()),
+            )
+            .into_response()
         }
         Err(error) => {
             let (status, _) = upstream_failure_status(error);
-            (status, render(strings, other, strings.upstream_failure)).into_response()
+            let page = render(strings, other, strings.upstream_failure, html! {});
+            (status, page).into_response()
         }
     }
 }
 
-fn render(strings: &Strings, other: &Strings, answer: &str) -> Markup {
+fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
+    let elapsed = now.duration_since(fetched.fetched_at);
+    html! {
+        (status_details(strings, &fetched.status))
+        p.updated {
+            (strings.updated)
+            time datetime=(to_the_second(fetched.fetched_at)) { ((strings.ago)(Age::of(elapsed))) }
+        }
+        @if elapsed >= STALE_AFTER {
+            p.stale { (strings.stale) }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Age {
+    UnderAMinute,
+    Minutes(i64),
+    Hours(i64),
+    Days(i64),
+}
+
+impl Age {
+    fn of(elapsed: SignedDuration) -> Age {
+        let minutes = elapsed.as_mins();
+        if minutes < 1 {
+            Age::UnderAMinute
+        } else if minutes < 60 {
+            Age::Minutes(minutes)
+        } else if minutes < 60 * 24 {
+            Age::Hours(minutes / 60)
+        } else {
+            Age::Days(minutes / (60 * 24))
+        }
+    }
+}
+
+fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
+    let mut rows = [
+        (strings.dates, status.dates.as_deref()),
+        (strings.hours, status.hours.as_deref()),
+        (strings.reopening, status.reopening.map(strings.forecast)),
+        (strings.notes, status.notes.as_deref()),
+    ]
+    .into_iter()
+    .filter_map(|(term, description)| Some((term, description?)))
+    .peekable();
+    html! {
+        @if rows.peek().is_some() {
+            dl {
+                @for (term, description) in rows {
+                    dt { (term) }
+                    dd { (description) }
+                }
+            }
+        }
+    }
+}
+
+fn render(strings: &Strings, other: &Strings, answer: &str, details: Markup) -> Markup {
     html! {
         (DOCTYPE)
         html lang=(strings.code) {
@@ -119,6 +203,7 @@ fn render(strings: &Strings, other: &Strings, answer: &str) -> Markup {
                 }
                 p { (strings.question) }
                 h1 { (answer) }
+                (details)
                 footer {
                     (strings.source_lead)
                     a href=(SOURCE_URL) { (strings.source_link) }
