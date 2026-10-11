@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use jiff::Timestamp;
+use jiff::{RoundMode, Timestamp, TimestampRound, Unit};
 use serde::Serialize;
 use tokio::sync::watch;
 
@@ -55,7 +55,7 @@ impl<'a> From<&'a Fetched> for StatusResponse<'a> {
             hours: status.hours.as_deref(),
             reopening: status.reopening,
             notes: status.notes.as_deref(),
-            fetched_at: *fetched_at,
+            fetched_at: to_the_second(*fetched_at),
         }
     }
 }
@@ -70,4 +70,14 @@ struct ErrorResponse {
 enum ErrorCode {
     UpstreamTimeout,
     UpstreamError,
+}
+
+fn to_the_second(timestamp: Timestamp) -> Timestamp {
+    timestamp
+        .round(
+            TimestampRound::new()
+                .smallest(Unit::Second)
+                .mode(RoundMode::Floor),
+        )
+        .expect("flooring to a second stays within range")
 }
