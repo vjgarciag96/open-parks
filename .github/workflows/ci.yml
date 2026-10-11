@@ -39,3 +39,11 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.VPS_INFRA_DISPATCH_TOKEN }}
+        run: >
+          gh api repos/vjgarciag96/vps-infra/dispatches
+          -f event_type=image-published
+          -f "client_payload[image]=ghcr.io/${{ github.repository }}"
+          -f "client_payload[tag]=${{ github.sha }}"
