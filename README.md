@@ -1,6 +1,8 @@
 # open-parks
 
-Is Retiro open? Madrid park alert status, served as SSR HTML and a JSON API.
+Is Retiro open? Madrid park alert status, served as SSR HTML
+([retiroabierto.duckdns.org](https://retiroabierto.duckdns.org)) and a JSON API
+([`/api/v1/parks/retiro/status`](https://retiroabierto.duckdns.org/api/v1/parks/retiro/status)).
 
 ## Development
 
