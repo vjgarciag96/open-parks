@@ -1,9 +1,11 @@
+use std::time::Duration;
 use std::{env, io};
 
-use open_parks::{api, sigma};
+use open_parks::{api, poller, sigma};
 use reqwest::Url;
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:3000";
+const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
@@ -13,7 +15,8 @@ async fn main() -> io::Result<()> {
         .await
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
     println!("listening on http://{}", listener.local_addr()?);
-    axum::serve(listener, api::router(sigma)).await
+    let latest = poller::start(sigma, REFRESH_INTERVAL).await;
+    axum::serve(listener, api::router(latest)).await
 }
 
 fn sigma_client() -> io::Result<sigma::Client> {

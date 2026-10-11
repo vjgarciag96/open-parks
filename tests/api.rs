@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
-use open_parks::{api, sigma};
+use open_parks::{api, poller, sigma};
 use reqwest::Url;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -21,7 +21,8 @@ const RETIRO_STATUS: &str = "/api/v1/parks/retiro/status";
 
 async fn get(upstream: Url, timeout: Duration, uri: &str) -> Response {
     let client = sigma::Client::new(upstream, timeout).unwrap();
-    api::router(client)
+    let latest = poller::start(client, Duration::from_secs(3600)).await;
+    api::router(latest)
         .oneshot(Request::get(uri).body(Body::empty()).unwrap())
         .await
         .unwrap()

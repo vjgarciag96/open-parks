@@ -42,7 +42,8 @@ clients localise them.
 - `reopening`: `after_inspections`, `see_notes`, `unknown` or `null`.
 - `dates`, `hours` and `notes`: SIGMA's free text, or `null` when blank.
 
-For now each request queries SIGMA. When that fails, the response is a
-`502 Bad Gateway` with `{"error": "upstream_error"}`, or a
-`504 Gateway Timeout` with `{"error": "upstream_timeout"}` when SIGMA doesn't
-answer in time.
+Requests never query SIGMA. The status is fetched at startup and refreshed
+every minute in the background, and requests are served the latest result. When
+that fetch failed, the response is a `502 Bad Gateway` with
+`{"error": "upstream_error"}`, or a `504 Gateway Timeout` with
+`{"error": "upstream_timeout"}` when SIGMA didn't answer in time.
