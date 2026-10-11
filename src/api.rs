@@ -1,31 +1,29 @@
-use std::error::Error;
-use std::sync::Arc;
-
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Serialize;
+use tokio::sync::watch;
 
 use crate::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
-use crate::sigma::{self, FetchError};
+use crate::poller::Latest;
+use crate::sigma::FetchError;
 
-pub fn router(sigma: sigma::Client) -> Router {
+pub fn router(latest: watch::Receiver<Latest>) -> Router {
     Router::new()
         .route("/api/v1/parks/retiro/status", get(retiro_status))
-        .with_state(Arc::new(sigma))
+        .with_state(latest)
 }
 
-async fn retiro_status(State(sigma): State<Arc<sigma::Client>>) -> Response {
-    match sigma.retiro_park_status().await {
-        Ok(status) => Json(StatusResponse::from(&status)).into_response(),
-        Err(error) => upstream_failure(&error),
+async fn retiro_status(State(latest): State<watch::Receiver<Latest>>) -> Response {
+    match &*latest.borrow() {
+        Ok(status) => Json(StatusResponse::from(status)).into_response(),
+        Err(error) => upstream_failure(error),
     }
 }
 
 fn upstream_failure(error: &FetchError) -> Response {
-    eprintln!("fetching Retiro's status: {}", with_sources(error));
     let (status, error) = match error {
         FetchError::Timeout => (StatusCode::GATEWAY_TIMEOUT, ErrorCode::UpstreamTimeout),
         FetchError::Transport(_)
@@ -34,17 +32,6 @@ fn upstream_failure(error: &FetchError) -> Response {
         | FetchError::Decode(_) => (StatusCode::BAD_GATEWAY, ErrorCode::UpstreamError),
     };
     (status, Json(ErrorResponse { error })).into_response()
-}
-
-fn with_sources(error: &dyn Error) -> String {
-    let mut message = error.to_string();
-    let mut source = error.source();
-    while let Some(error) = source {
-        message.push_str(": ");
-        message.push_str(&error.to_string());
-        source = error.source();
-    }
-    message
 }
 
 #[derive(Serialize)]
