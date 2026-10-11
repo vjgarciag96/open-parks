@@ -84,7 +84,7 @@ fn the_binary_serves_retiros_status_page() {
     let sigma = runtime.block_on(serving_json(fixture("code_7_closed.json")));
     let (_server, address) = start_server(&sigma);
 
-    let response = get(&address, "/");
+    let response = get(&address, "/es");
 
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
