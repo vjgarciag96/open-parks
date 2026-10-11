@@ -38,6 +38,27 @@ on every push to `main`.
 elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 `OPEN_PARKS_SIGMA_QUERY_URL` to query another endpoint, such as a local fake.
 
+## Traffic
+
+The app keeps no record of requests; Caddy, in front of it on the VPS, logs
+each one to `/var/log/caddy/retiroabierto.log` and keeps 30 days. GoAccess on
+the VPS reads that log. `<vps>` is the VPS's SSH host, which the `vps-infra`
+repository gives.
+
+```sh
+# Live in the terminal (-t gives GoAccess a terminal to draw in; q quits)
+ssh -t root@<vps> goaccess /var/log/caddy/retiroabierto.log --log-format=CADDY
+
+# As an HTML report in the browser
+ssh root@<vps> goaccess /var/log/caddy/retiroabierto.log --log-format=CADDY -o html > target/traffic.html
+open target/traffic.html
+```
+
+Requested Files counts the page (`/es`, `/en`) and the API
+(`/api/v1/parks/retiro/status`) separately, and Visitors counts unique
+visitors a day by IP and user agent. A client polling the API makes many
+requests, so its distinct visitors say more than its hits.
+
 ## Page
 
 `GET /es` and `GET /en` serve the status page in Spanish and English: a
