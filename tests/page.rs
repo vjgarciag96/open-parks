@@ -109,3 +109,24 @@ async fn the_page_has_no_scripts_and_inline_styles_only() {
     assert!(!body.contains("<link"), "{body}");
     assert!(body.contains("<style>"), "{body}");
 }
+
+#[tokio::test]
+async fn the_page_credits_madrid_as_the_source_under_its_licence() {
+    for latest in [fetched("code_1_open.json"), Err(sigma::FetchError::Timeout)] {
+        let body = text_body(get(latest, "/").await).await;
+
+        assert!(
+            body.contains(
+                r#"Elaborado a partir de <a href="https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0">datos del Ayuntamiento de Madrid</a>"#
+            ),
+            "{body}"
+        );
+        assert!(
+            body.contains(
+                r#"<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>"#
+            ),
+            "{body}"
+        );
+        assert!(body.contains("no está vinculada al Ayuntamiento"), "{body}");
+    }
+}

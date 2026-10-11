@@ -17,3 +17,13 @@ p {
   margin: 0;
   color: #555;
 }
+
+footer {
+  margin-top: 3rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+footer a {
+  color: inherit;
+}

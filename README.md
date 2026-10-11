@@ -36,6 +36,17 @@ elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 ## Page
 
 `GET /` is a server-rendered HTML page with no JavaScript and inline CSS.
+Its footer credits the data source and its licence.
+
+## Data source
+
+The status is our interpretation of data from the Ayuntamiento de Madrid's
+[SIGMA park alerts layer](https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0),
+reused under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es),
+the licence of Madrid's open data [terms of use](https://datos.madrid.es/pages/condiciones-de-uso). This
+project is not affiliated with or endorsed by the Ayuntamiento. If you reuse the
+API's data, credit the Ayuntamiento de Madrid as its source too; `fetched_at`
+gives the date of the data.
 
 ## API
 
