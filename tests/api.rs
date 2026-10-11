@@ -5,9 +5,13 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
-use open_parks::{api, poller, sigma};
+use jiff::Timestamp;
+use open_parks::api;
+use open_parks::poller::{self, Fetched, Latest};
+use open_parks::sigma;
 use reqwest::Url;
 use serde_json::{Value, json};
+use tokio::sync::watch;
 use tower::ServiceExt;
 
 mod common;
@@ -19,22 +23,29 @@ use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 const RETIRO_STATUS: &str = "/api/v1/parks/retiro/status";
 
-async fn get(upstream: Url, timeout: Duration, uri: &str) -> Response {
-    let client = sigma::Client::new(upstream, timeout).unwrap();
-    let latest = poller::start(client, Duration::from_secs(3600)).await;
+async fn get(latest: watch::Receiver<Latest>, uri: &str) -> Response {
     api::router(latest)
         .oneshot(Request::get(uri).body(Body::empty()).unwrap())
         .await
         .unwrap()
 }
 
+fn fetched(fixture_name: &str) -> watch::Receiver<Latest> {
+    let fetched = Fetched {
+        status: sigma::decode(&fixture(fixture_name)).unwrap(),
+        fetched_at: "2026-10-11T09:30:00Z".parse().unwrap(),
+    };
+    watch::channel(Ok(fetched)).1
+}
+
 async fn get_retiro_status(fixture_name: &str) -> Response {
-    get(
-        serving_json(fixture(fixture_name)).await,
-        GENEROUS_TIMEOUT,
-        RETIRO_STATUS,
-    )
-    .await
+    get(fetched(fixture_name), RETIRO_STATUS).await
+}
+
+async fn get_retiro_status_from(upstream: Url, timeout: Duration) -> Response {
+    let client = sigma::Client::new(upstream, timeout).unwrap();
+    let latest = poller::start(client, Duration::from_secs(3600), Timestamp::now).await;
+    get(latest, RETIRO_STATUS).await
 }
 
 async fn json_body(response: Response) -> Value {
@@ -72,6 +83,7 @@ async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
             "reopening": null,
             "notes": "Cerradas las zonas infantiles, deportivas y de mayores. \
                       Suspendidos los eventos al aire libre.",
+            "fetched_at": "2026-10-11T09:30:00Z",
         })
     );
 }
@@ -146,6 +158,7 @@ async fn absent_details_are_served_as_null() {
             "hours": null,
             "reopening": null,
             "notes": null,
+            "fetched_at": "2026-10-11T09:30:00Z",
         })
     );
 }
@@ -153,8 +166,7 @@ async fn absent_details_are_served_as_null() {
 #[tokio::test]
 async fn other_parks_are_not_found() {
     let response = get(
-        serving_json(fixture("code_1_open.json")).await,
-        GENEROUS_TIMEOUT,
+        fetched("code_1_open.json"),
         "/api/v1/parks/casa-de-campo/status",
     )
     .await;
@@ -166,14 +178,16 @@ async fn other_parks_are_not_found() {
 async fn a_failing_upstream_is_a_bad_gateway() {
     let upstream = serving(|| async { StatusCode::SERVICE_UNAVAILABLE }).await;
 
-    let response = get(upstream, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+    let response = get_retiro_status_from(upstream, GENEROUS_TIMEOUT).await;
 
     assert_upstream_error(response).await;
 }
 
 #[tokio::test]
 async fn an_undecodable_upstream_response_is_a_bad_gateway() {
-    let response = get_retiro_status("malformed.json").await;
+    let upstream = serving_json(fixture("malformed.json")).await;
+
+    let response = get_retiro_status_from(upstream, GENEROUS_TIMEOUT).await;
 
     assert_upstream_error(response).await;
 }
@@ -182,7 +196,7 @@ async fn an_undecodable_upstream_response_is_a_bad_gateway() {
 async fn an_oversized_upstream_response_is_a_bad_gateway() {
     let upstream = serving_json(" ".repeat(8 * 1024 * 1024)).await;
 
-    let response = get(upstream, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+    let response = get_retiro_status_from(upstream, GENEROUS_TIMEOUT).await;
 
     assert_upstream_error(response).await;
 }
@@ -191,7 +205,7 @@ async fn an_oversized_upstream_response_is_a_bad_gateway() {
 async fn an_unreachable_upstream_is_a_bad_gateway() {
     let unreachable = url_for(SocketAddr::from(([127, 0, 0, 1], 0)));
 
-    let response = get(unreachable, GENEROUS_TIMEOUT, RETIRO_STATUS).await;
+    let response = get_retiro_status_from(unreachable, GENEROUS_TIMEOUT).await;
 
     assert_upstream_error(response).await;
 }
@@ -200,7 +214,7 @@ async fn an_unreachable_upstream_is_a_bad_gateway() {
 async fn an_upstream_that_never_responds_is_a_gateway_timeout() {
     let upstream = serving(std::future::pending::<()>).await;
 
-    let response = get(upstream, SHORT_TIMEOUT, RETIRO_STATUS).await;
+    let response = get_retiro_status_from(upstream, SHORT_TIMEOUT).await;
 
     assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     assert_eq!(

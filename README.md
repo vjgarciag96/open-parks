@@ -43,7 +43,8 @@ clients localise them.
   "dates": "12/10/2026",
   "hours": "de 14:00 a 20:00 h",
   "reopening": null,
-  "notes": "Cerradas las zonas infantiles, deportivas y de mayores. Suspendidos los eventos al aire libre."
+  "notes": "Cerradas las zonas infantiles, deportivas y de mayores. Suspendidos los eventos al aire libre.",
+  "fetched_at": "2026-10-11T09:30:00.123456Z"
 }
 ```
 
@@ -53,9 +54,13 @@ clients localise them.
   `closure_forecast`, `closed` or `unknown`.
 - `reopening`: `after_inspections`, `see_notes`, `unknown` or `null`.
 - `dates`, `hours` and `notes`: SIGMA's free text, or `null` when blank.
+- `fetched_at`: when the status was fetched from SIGMA, in RFC 3339 (UTC).
 
 Requests never query SIGMA. The status is fetched at startup and refreshed
-every minute in the background, and requests are served the latest result. When
-that fetch failed, the response is a `502 Bad Gateway` with
+every minute in the background, and requests are served the latest status
+fetched. A failed refresh is logged and the previous status keeps being served;
+refreshes stay at one a minute rather than backing off, since that is already
+light on SIGMA and picks up its recovery soonest. Only when no fetch has
+succeeded yet is the response an error: a `502 Bad Gateway` with
 `{"error": "upstream_error"}`, or a `504 Gateway Timeout` with
 `{"error": "upstream_timeout"}` when SIGMA didn't answer in time.
