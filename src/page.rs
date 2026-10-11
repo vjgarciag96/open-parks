@@ -13,6 +13,10 @@ const QUESTION: &str = "¿Está abierto el Retiro?";
 
 const STYLE: &str = include_str!("page.css");
 
+const SOURCE_URL: &str =
+    "https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0";
+const LICENCE_URL: &str = "https://creativecommons.org/licenses/by/4.0/deed.es";
+
 pub fn router(latest: watch::Receiver<Latest>) -> Router {
     Router::new()
         .route("/", get(retiro_status))
@@ -42,6 +46,13 @@ fn render(answer: &str) -> Markup {
             body {
                 p { (QUESTION) }
                 h1 { (answer) }
+                footer {
+                    "Elaborado a partir de "
+                    a href=(SOURCE_URL) { "datos del Ayuntamiento de Madrid" }
+                    " ("
+                    a href=(LICENCE_URL) { "CC BY 4.0" }
+                    "). Esta web interpreta esos datos y no está vinculada al Ayuntamiento ni avalada por él."
+                }
             }
         }
     }
