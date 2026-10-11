@@ -99,7 +99,7 @@ fn from_json<T: DeserializeOwned>(
 }
 
 // Codes from the layer's renderer (`MapServer/0?f=json`).
-fn alert_code(raw: i16) -> AlertCode {
+pub(crate) fn alert_code(raw: i16) -> AlertCode {
     match raw {
         1 => AlertCode::Open,
         2 => AlertCode::Incidents,
@@ -109,6 +109,19 @@ fn alert_code(raw: i16) -> AlertCode {
         6 => AlertCode::RedAlertRestrictions,
         7 => AlertCode::Closed,
         other => AlertCode::Unknown(other),
+    }
+}
+
+pub(crate) fn raw_alert_code(code: AlertCode) -> i16 {
+    match code {
+        AlertCode::Open => 1,
+        AlertCode::Incidents => 2,
+        AlertCode::YellowAlert => 3,
+        AlertCode::OrangeAlert => 4,
+        AlertCode::RedAlertClosure => 5,
+        AlertCode::RedAlertRestrictions => 6,
+        AlertCode::Closed => 7,
+        AlertCode::Unknown(raw) => raw,
     }
 }
 

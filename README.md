@@ -30,7 +30,9 @@ docker build -t open-parks .
 docker run -p 127.0.0.1:3000:3000 open-parks
 ```
 
-The image holds only the static binary and listens on port 3000. CI builds it
+The image holds only the static binary and listens on port 3000. It has a
+`/data` directory owned by the user the service runs as, so an empty named
+volume mounted there is writable; `OPEN_PARKS_DATABASE` points into it. CI builds it
 on every pull request and publishes `ghcr.io/vjgarciag96/open-parks:<commit>`
 on every push to `main`.
 
@@ -39,6 +41,16 @@ on every push to `main`.
 `cargo run` serves on `127.0.0.1:3000`; set `OPEN_PARKS_ADDRESS` to listen
 elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 `OPEN_PARKS_SIGMA_QUERY_URL` to query another endpoint, such as a local fake.
+
+## State
+
+When a notification channel is configured, the service keeps its state in a
+SQLite database at `OPEN_PARKS_DATABASE`: the code of the last status
+seen, written whenever it changes and read back at startup; the verdict is
+derived from it. An unknown code isn't stored, so the last code stays the last
+one SIGMA documents. Opening the
+database migrates its schema, and startup fails if either fails. No channel
+exists yet, so nothing opens the database and the service keeps no state.
 
 ## Page
 

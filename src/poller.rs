@@ -53,7 +53,7 @@ async fn fetch(sigma: &sigma::Client, clock: &impl Clock) -> Latest {
     latest
 }
 
-fn with_sources(error: &dyn Error) -> String {
+pub(crate) fn with_sources(error: &dyn Error) -> String {
     let mut message = error.to_string();
     let mut source = error.source();
     while let Some(error) = source {
