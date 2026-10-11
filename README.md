@@ -39,6 +39,11 @@ elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 server-rendered HTML page with no JavaScript and inline CSS. Each links to the
 other language, and its footer credits the data source and its licence.
 
+Under the verdict, the page lists whichever of the dates, hours, reopening
+forecast and notes SIGMA gave, and says how long ago the status was fetched.
+Once that is ten minutes or more (ten missed refreshes), it also warns that the
+status may be out of date.
+
 `GET /` redirects (`302 Found`) to the language the browser's `Accept-Language`
 ranks highest, or to `/es` when it accepts neither. Each language has its own
 URL so links and caches keep the language; the JSON API stays language-free.

@@ -2,6 +2,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
+use jiff::Timestamp;
 use open_parks::page;
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma;
@@ -11,15 +12,21 @@ use tower::ServiceExt;
 mod common;
 use common::fixture;
 
-async fn send(latest: Latest, request: Request<Body>) -> Response {
-    page::router(watch::channel(latest).1)
+const FETCHED_AT: &str = "2026-10-11T09:30:00Z";
+
+async fn send(latest: Latest, now: Timestamp, request: Request<Body>) -> Response {
+    page::router(watch::channel(latest).1, move || now)
         .oneshot(request)
         .await
         .unwrap()
 }
 
 async fn get(latest: Latest, uri: &str) -> Response {
-    send(latest, Request::get(uri).body(Body::empty()).unwrap()).await
+    get_at(latest, FETCHED_AT.parse().unwrap(), uri).await
+}
+
+async fn get_at(latest: Latest, now: Timestamp, uri: &str) -> Response {
+    send(latest, now, Request::get(uri).body(Body::empty()).unwrap()).await
 }
 
 async fn get_accepting(accept_language: &str) -> Response {
@@ -27,13 +34,13 @@ async fn get_accepting(accept_language: &str) -> Response {
         .header(header::ACCEPT_LANGUAGE, accept_language)
         .body(Body::empty())
         .unwrap();
-    send(fetched("code_1_open.json"), request).await
+    send(fetched("code_1_open.json"), Timestamp::now(), request).await
 }
 
 fn fetched(fixture_name: &str) -> Latest {
     Ok(Fetched {
         status: sigma::decode(&fixture(fixture_name)).unwrap(),
-        fetched_at: "2026-10-11T09:30:00Z".parse().unwrap(),
+        fetched_at: FETCHED_AT.parse().unwrap(),
     })
 }
 
@@ -42,6 +49,10 @@ fn assert_html(response: &Response) {
         response.headers()[header::CONTENT_TYPE],
         "text/html; charset=utf-8"
     );
+}
+
+async fn body_at(fixture_name: &str, now: &str, uri: &str) -> String {
+    text_body(get_at(fetched(fixture_name), now.parse().unwrap(), uri).await).await
 }
 
 async fn text_body(response: Response) -> String {
@@ -279,5 +290,120 @@ async fn the_english_page_credits_madrid_as_the_source_under_its_licence() {
             body.contains("not affiliated with or endorsed by the City Council"),
             "{body}"
         );
+    }
+}
+
+#[tokio::test]
+async fn the_page_shows_the_status_details() {
+    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
+
+    assert!(
+        body.contains("<dt>Fechas</dt><dd>12/10/2026</dd>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<dt>Horario</dt><dd>de 14:00 a 20:00 h</dd>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<dt>Observaciones</dt><dd>Cerradas las zonas infantiles, deportivas y de mayores. Suspendidos los eventos al aire libre.</dd>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn every_reopening_forecast_is_shown() {
+    let cases = [
+        (
+            "code_5_red_alert_closure.json",
+            "Cuando terminen las inspecciones",
+        ),
+        ("code_7_closed.json", "Consulta las observaciones"),
+        ("unknown_codes.json", "Desconocida"),
+    ];
+    for (name, reopening) in cases {
+        let body = text_body(get(fetched(name), "/es").await).await;
+
+        assert!(
+            body.contains(&format!("<dt>Reapertura</dt><dd>{reopening}</dd>")),
+            "fixture {name}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn absent_details_are_left_out() {
+    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+
+    assert!(
+        body.contains("<dt>Fechas</dt><dd>10/10/2026</dd>"),
+        "{body}"
+    );
+    for term in ["Horario", "Reapertura", "Observaciones"] {
+        assert!(!body.contains(term), "{term}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_status_without_details_shows_no_details_list() {
+    let body = text_body(get(fetched("blank_strings.json"), "/es").await).await;
+
+    assert!(!body.contains("<dl>"), "{body}");
+}
+
+#[tokio::test]
+async fn the_page_says_how_long_ago_the_status_was_fetched() {
+    let cases = [
+        ("2026-10-11T09:30:00Z", "hace menos de un minuto"),
+        ("2026-10-11T09:30:59Z", "hace menos de un minuto"),
+        ("2026-10-11T09:31:00Z", "hace 1 minuto"),
+        ("2026-10-11T09:35:20Z", "hace 5 minutos"),
+        ("2026-10-11T10:29:59Z", "hace 59 minutos"),
+        ("2026-10-11T10:30:00Z", "hace 1 hora"),
+        ("2026-10-11T13:10:00Z", "hace 3 horas"),
+        ("2026-10-12T09:30:00Z", "hace 1 día"),
+        ("2026-10-13T11:00:00Z", "hace 2 días"),
+        // A clock that has stepped back since the fetch.
+        ("2026-10-11T09:29:00Z", "hace menos de un minuto"),
+    ];
+    for (now, ago) in cases {
+        let body = body_at("code_1_open.json", now, "/es").await;
+
+        assert!(
+            body.contains(&format!(
+                r#"Actualizado <time datetime="2026-10-11T09:30:00Z">{ago}</time>"#
+            )),
+            "now {now}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_status_fetched_ten_minutes_ago_or_more_is_flagged_as_stale() {
+    let stale = "Puede que este estado no esté al día.";
+    let cases = [
+        ("2026-10-11T09:39:59Z", false),
+        ("2026-10-11T09:40:00Z", true),
+        ("2026-10-12T09:30:00Z", true),
+    ];
+    for (now, flagged) in cases {
+        let body = body_at("code_1_open.json", now, "/es").await;
+
+        assert_eq!(body.contains(stale), flagged, "now {now}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_status_details_are_shown_in_english() {
+    let body = body_at("code_7_closed.json", "2026-10-11T12:00:00Z", "/en").await;
+
+    for expected in [
+        "<dt>Dates</dt><dd>13/10/2026</dd>",
+        "<dt>Reopening</dt><dd>See the notes</dd>",
+        "<dt>Notes</dt><dd>El parque permanecerá cerrado hasta la retirada de las ramas caídas.</dd>",
+        r#"Updated <time datetime="2026-10-11T09:30:00Z">2 hours ago</time>"#,
+        "This status may be out of date.",
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
     }
 }

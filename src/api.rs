@@ -76,7 +76,7 @@ pub(crate) enum ErrorCode {
     UpstreamError,
 }
 
-fn to_the_second(timestamp: Timestamp) -> Timestamp {
+pub(crate) fn to_the_second(timestamp: Timestamp) -> Timestamp {
     timestamp
         .round(
             TimestampRound::new()

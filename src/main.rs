@@ -19,7 +19,7 @@ async fn main() -> io::Result<()> {
     println!("listening on http://{}", listener.local_addr()?);
     let mut terminate = signal(SignalKind::terminate())?;
     let latest = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
-    let app = api::router(latest.clone()).merge(page::router(latest));
+    let app = api::router(latest.clone()).merge(page::router(latest, Timestamp::now));
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             tokio::select! {

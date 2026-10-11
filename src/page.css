@@ -36,3 +36,32 @@ nav {
 nav a {
   color: #555;
 }
+
+dl {
+  margin: 1.5rem auto 0;
+  max-width: 32rem;
+}
+
+dt {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+dd {
+  margin: 0.15rem 0 0;
+  white-space: pre-line;
+}
+
+.updated {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.stale {
+  margin-top: 0.5rem;
+  color: #a33;
+  font-weight: 600;
+}
