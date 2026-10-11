@@ -18,7 +18,8 @@ CI runs the last three on every push to `main` and on pull requests.
 ## API
 
 `cargo run` serves on `127.0.0.1:3000`; set `OPEN_PARKS_ADDRESS` to listen
-elsewhere.
+elsewhere. The status comes from Madrid's SIGMA alerts layer; set
+`OPEN_PARKS_SIGMA_QUERY_URL` to query another endpoint, such as a local fake.
 
 `GET /api/v1/parks/retiro/status` returns Retiro's status as machine values;
 clients localise them.
@@ -41,4 +42,7 @@ clients localise them.
 - `reopening`: `after_inspections`, `see_notes`, `unknown` or `null`.
 - `dates`, `hours` and `notes`: SIGMA's free text, or `null` when blank.
 
-For now the server reports a fixed status rather than the live layer.
+For now each request queries SIGMA. When that fails, the response is a
+`502 Bad Gateway` with `{"error": "upstream_error"}`, or a
+`504 Gateway Timeout` with `{"error": "upstream_timeout"}` when SIGMA doesn't
+answer in time.

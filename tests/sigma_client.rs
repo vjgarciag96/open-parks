@@ -3,56 +3,32 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use axum::Router;
 use axum::extract::{Query, Request};
 use axum::http::request::Parts;
 use axum::http::{StatusCode, header};
-use axum::response::IntoResponse;
-use axum::routing::get;
 use open_parks::sigma::{self, DecodeError, FetchError};
 use reqwest::Url;
 use tokio::io::AsyncWriteExt;
 
 mod common;
+mod fake_upstream;
+mod timeouts;
 use common::fixture;
+use fake_upstream::{json, serving, serving_json, url_for};
+use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
-const GENEROUS_TIMEOUT: Duration = Duration::from_secs(5);
-const SHORT_TIMEOUT: Duration = Duration::from_millis(100);
-
-fn url_for(address: SocketAddr) -> Url {
-    Url::parse(&format!("http://{address}/layer/query")).unwrap()
-}
-
-async fn fake_upstream(router: Router) -> Url {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    url_for(address)
-}
-
-fn json(body: String) -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "application/json")], body)
-}
-
-fn serving_fixture(name: &str) -> Router {
-    let body = fixture(name);
-    Router::new().route("/layer/query", get(|| async move { json(body) }))
-}
-
-fn recording_requests() -> (Router, Arc<Mutex<Option<Parts>>>) {
+async fn recording_requests() -> (Url, Arc<Mutex<Option<Parts>>>) {
     let received = Arc::new(Mutex::new(None));
     let body = fixture("code_1_open.json");
-    let router = Router::new().route(
-        "/layer/query",
-        get({
-            let received = Arc::clone(&received);
-            |request: Request| async move {
-                *received.lock().unwrap() = Some(request.into_parts().0);
-                json(body)
-            }
-        }),
-    );
-    (router, received)
+    let url = serving({
+        let received = Arc::clone(&received);
+        |request: Request| async move {
+            *received.lock().unwrap() = Some(request.into_parts().0);
+            json(body)
+        }
+    })
+    .await;
+    (url, received)
 }
 
 fn client(url: Url, timeout: Duration) -> sigma::Client {
@@ -61,7 +37,7 @@ fn client(url: Url, timeout: Duration) -> sigma::Client {
 
 #[tokio::test]
 async fn retiros_park_status_is_fetched_and_decoded() {
-    let url = fake_upstream(serving_fixture("code_7_closed.json")).await;
+    let url = serving_json(fixture("code_7_closed.json")).await;
 
     let park_status = client(url, GENEROUS_TIMEOUT)
         .retiro_park_status()
@@ -76,8 +52,7 @@ async fn retiros_park_status_is_fetched_and_decoded() {
 
 #[tokio::test]
 async fn only_retiros_row_is_requested_without_geometry() {
-    let (router, received) = recording_requests();
-    let url = fake_upstream(router).await;
+    let (url, received) = recording_requests().await;
 
     client(url, GENEROUS_TIMEOUT)
         .retiro_park_status()
@@ -106,8 +81,7 @@ async fn only_retiros_row_is_requested_without_geometry() {
 
 #[tokio::test]
 async fn requests_identify_open_parks() {
-    let (router, received) = recording_requests();
-    let url = fake_upstream(router).await;
+    let (url, received) = recording_requests().await;
 
     client(url, GENEROUS_TIMEOUT)
         .retiro_park_status()
@@ -128,11 +102,7 @@ async fn requests_identify_open_parks() {
 #[tokio::test]
 async fn an_http_error_status_is_an_error_even_with_a_decodable_body() {
     let body = fixture("code_1_open.json");
-    let router = Router::new().route(
-        "/layer/query",
-        get(|| async move { (StatusCode::SERVICE_UNAVAILABLE, json(body)) }),
-    );
-    let url = fake_upstream(router).await;
+    let url = serving(|| async move { (StatusCode::SERVICE_UNAVAILABLE, json(body)) }).await;
 
     let result = client(url, GENEROUS_TIMEOUT).retiro_park_status().await;
 
@@ -147,8 +117,7 @@ async fn an_http_error_status_is_an_error_even_with_a_decodable_body() {
 
 #[tokio::test]
 async fn an_upstream_that_never_responds_times_out() {
-    let router = Router::new().route("/layer/query", get(std::future::pending::<()>));
-    let url = fake_upstream(router).await;
+    let url = serving(std::future::pending::<()>).await;
 
     let result = client(url, SHORT_TIMEOUT).retiro_park_status().await;
 
@@ -178,8 +147,7 @@ async fn a_body_that_stops_arriving_times_out() {
 #[tokio::test]
 async fn an_oversized_body_is_an_error() {
     let body = " ".repeat(8 * 1024 * 1024);
-    let router = Router::new().route("/layer/query", get(|| async move { json(body) }));
-    let url = fake_upstream(router).await;
+    let url = serving(|| async move { json(body) }).await;
 
     let result = client(url, GENEROUS_TIMEOUT).retiro_park_status().await;
 
@@ -191,7 +159,7 @@ async fn an_oversized_body_is_an_error() {
 
 #[tokio::test]
 async fn a_malformed_body_is_a_decode_error() {
-    let url = fake_upstream(serving_fixture("malformed.json")).await;
+    let url = serving_json(fixture("malformed.json")).await;
 
     let result = client(url, GENEROUS_TIMEOUT).retiro_park_status().await;
 
@@ -203,7 +171,7 @@ async fn a_malformed_body_is_a_decode_error() {
 
 #[tokio::test]
 async fn an_error_body_sent_with_status_200_is_a_decode_error() {
-    let url = fake_upstream(serving_fixture("error_body.json")).await;
+    let url = serving_json(fixture("error_body.json")).await;
 
     let result = client(url, GENEROUS_TIMEOUT).retiro_park_status().await;
 

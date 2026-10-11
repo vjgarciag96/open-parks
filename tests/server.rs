@@ -2,7 +2,13 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
 
+use reqwest::Url;
 use serde_json::{Value, json};
+
+mod common;
+mod fake_upstream;
+use common::fixture;
+use fake_upstream::serving_json;
 
 struct Server(Child);
 
@@ -13,9 +19,10 @@ impl Drop for Server {
     }
 }
 
-fn start_server() -> (Server, String) {
+fn start_server(sigma_query_url: &Url) -> (Server, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_open-parks"))
         .env("OPEN_PARKS_ADDRESS", "127.0.0.1:0")
+        .env("OPEN_PARKS_SIGMA_QUERY_URL", sigma_query_url.as_str())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -45,8 +52,10 @@ fn get(address: &str, path: &str) -> String {
 }
 
 #[test]
-fn the_binary_serves_retiros_status_over_http() {
-    let (_server, address) = start_server();
+fn the_binary_serves_retiros_status_from_sigma_over_http() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_7_closed.json")));
+    let (_server, address) = start_server(&sigma);
 
     let response = get(&address, "/api/v1/parks/retiro/status");
 
@@ -55,12 +64,12 @@ fn the_binary_serves_retiros_status_over_http() {
     assert_eq!(
         serde_json::from_str::<Value>(body).unwrap(),
         json!({
-            "code": "open",
-            "verdict": "open",
-            "dates": null,
+            "code": "closed",
+            "verdict": "closed",
+            "dates": "13/10/2026",
             "hours": null,
-            "reopening": null,
-            "notes": null,
+            "reopening": "see_notes",
+            "notes": "El parque permanecerá cerrado hasta la retirada de las ramas caídas.",
         })
     );
 }
