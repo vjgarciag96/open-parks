@@ -4,7 +4,8 @@ Is Retiro open? Madrid park alert status, served as SSR HTML and a JSON API.
 
 ## Development
 
-The toolchain is pinned in `rust-toolchain.toml`; rustup installs it on first use.
+The toolchain is pinned in `rust-toolchain.toml`, and the `Dockerfile`'s base
+image pins the same version; rustup installs it on first use.
 
 ```sh
 cargo run
@@ -14,6 +15,17 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 CI runs the last three on every push to `main` and on pull requests.
+
+## Container
+
+```sh
+docker build -t open-parks .
+docker run -p 127.0.0.1:3000:3000 open-parks
+```
+
+The image holds only the static binary and listens on port 3000. CI builds it
+on every pull request and publishes `ghcr.io/vjgarciag96/open-parks:<commit>`
+on every push to `main`.
 
 ## API
 
