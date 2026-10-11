@@ -27,3 +27,12 @@ footer {
 footer a {
   color: inherit;
 }
+
+nav {
+  margin-bottom: 2rem;
+  font-size: 0.9rem;
+}
+
+nav a {
+  color: #555;
+}

@@ -35,8 +35,13 @@ elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 
 ## Page
 
-`GET /` is a server-rendered HTML page with no JavaScript and inline CSS.
-Its footer credits the data source and its licence.
+`GET /es` and `GET /en` serve the status page in Spanish and English: a
+server-rendered HTML page with no JavaScript and inline CSS. Each links to the
+other language, and its footer credits the data source and its licence.
+
+`GET /` redirects (`302 Found`) to the language the browser's `Accept-Language`
+ranks highest, or to `/es` when it accepts neither. Each language has its own
+URL so links and caches keep the language; the JSON API stays language-free.
 
 ## Data source
 
