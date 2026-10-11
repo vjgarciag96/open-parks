@@ -41,7 +41,8 @@ Its footer credits the data source and its licence.
 ## Data source
 
 The status is our interpretation of data from the Ayuntamiento de Madrid's
-[SIGMA park alerts layer](https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0),
+[SIGMA park alerts layer](https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0)
+(see also its [park closure status page](https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es)),
 reused under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.es),
 the licence of Madrid's open data [terms of use](https://datos.madrid.es/pages/condiciones-de-uso). This
 project is not affiliated with or endorsed by the Ayuntamiento. If you reuse the

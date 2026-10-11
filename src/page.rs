@@ -13,8 +13,7 @@ const QUESTION: &str = "¿Está abierto el Retiro?";
 
 const STYLE: &str = include_str!("page.css");
 
-const SOURCE_URL: &str =
-    "https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0";
+const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 const LICENCE_URL: &str = "https://creativecommons.org/licenses/by/4.0/deed.es";
 
 pub fn router(latest: watch::Receiver<Latest>) -> Router {
