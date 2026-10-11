@@ -117,7 +117,7 @@ async fn the_page_credits_madrid_as_the_source_under_its_licence() {
 
         assert!(
             body.contains(
-                r#"Elaborado a partir de <a href="https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0">datos del Ayuntamiento de Madrid</a>"#
+                r#"Elaborado a partir de <a href="https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&amp;vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&amp;vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&amp;vgnextlocale=es">datos del Ayuntamiento de Madrid</a>"#
             ),
             "{body}"
         );
