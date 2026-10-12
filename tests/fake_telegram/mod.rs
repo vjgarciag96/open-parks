@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use reqwest::Url;
 use serde_json::{Value, json};
 use tokio::sync::Notify;
+use tokio::time::Instant;
 
 pub const TOKEN: &str = "123456:fake-token";
 
@@ -31,6 +32,7 @@ struct FakeState {
     next_update_id: i64,
     updates: Vec<Value>,
     sent: Vec<Sent>,
+    sent_at: Vec<Instant>,
     allowed_updates: Option<Value>,
     failures: HashMap<i64, VecDeque<(StatusCode, Value)>>,
 }
@@ -72,6 +74,10 @@ impl FakeTelegram {
 
     pub fn sent(&self) -> Vec<Sent> {
         self.state.lock().unwrap().sent.clone()
+    }
+
+    pub fn sent_at(&self) -> Vec<Instant> {
+        self.state.lock().unwrap().sent_at.clone()
     }
 
     pub fn fail_next_send(
@@ -195,6 +201,7 @@ fn send_message(fake: &FakeTelegram, params: &Value) -> Response {
         chat_id,
         text: text.to_owned(),
     });
+    state.sent_at.push(Instant::now());
     let message_id = state.sent.len();
     ok(json!({
         "message_id": message_id,

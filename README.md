@@ -60,7 +60,7 @@ notification to every configured channel. After a restart, the first fetch is
 compared with the stored status, so a closure while the service was down still
 notifies; on a fresh database, the first fetch is the baseline. Each channel
 has its own queue, so a slow one holds back neither the others nor the poller,
-and its messages arrive in order. No channel broadcasts yet, so without a
+and its messages arrive in order. Telegram is the only channel, so without a
 Telegram bot the service opens no database, runs no notifier and keeps no
 state.
 
@@ -79,8 +79,21 @@ endpoint, and answers three commands in private chats, groups and channels
 - `/stop` unsubscribes the chat and deletes both. Anyone in the chat can use it.
 - `/status` replies with the current status, or says it isn't known yet.
 
-Removing the bot from a chat unsubscribes it too. Subscribers aren't sent
-notifications yet.
+Removing the bot from a chat unsubscribes it too.
+
+Each notification is sent to every subscriber in their language: what
+changed (a closure, a closure expected, an expected closure that has begun,
+a closure that's over but still expected, or a reopening), the verdict, whichever of the dates, hours, reopening
+forecast and notes SIGMA gave, and a link to the page in that language.
+Messages go one at a time, at most 25 a second, and when Telegram asks the
+bot to slow down, every send waits as long as it says. A subscriber whose
+send fails for a reason that may pass is retried on its own, after 5 seconds and then twice as long each
+time, for about five minutes, while the others go ahead; then it's logged and
+given up on. The retries are kept in memory, so a restart or shutdown drops
+them. A chat that blocked the bot or that Telegram no longer knows is
+unsubscribed, and a group upgraded to a supergroup is notified and kept under
+its new ID (once, if that ID is already subscribed). The next notification waits until every subscriber has been sent
+the last one or given up on, so a reopening never arrives before the closure.
 
 ## Page
 

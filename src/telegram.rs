@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Write};
 use std::time::Duration;
 
 use reqwest::{StatusCode, Url, header};
@@ -6,16 +6,21 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::http;
+use crate::park_status::ParkStatus;
+use crate::strings::Strings;
 
 mod bot;
+mod broadcast;
 mod subscribers;
 pub use bot::start;
+pub use broadcast::{Broadcast, Pace};
 pub use subscribers::{Subscriber, Subscribers};
 
 const API_URL: &str = "https://api.telegram.org";
 const TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
+#[derive(Clone)]
 pub struct BotToken(String);
 
 impl BotToken {
@@ -36,10 +41,17 @@ impl fmt::Debug for BotToken {
     }
 }
 
+fn write_details(text: &mut String, strings: &Strings, status: &ParkStatus) {
+    for (index, (term, description)) in strings.details(status).enumerate() {
+        let separator = if index == 0 { "\n\n" } else { "\n" };
+        write!(text, "{separator}{term}: {description}").unwrap();
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ChatId(pub i64);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     http: reqwest::Client,
     api_url: Url,
