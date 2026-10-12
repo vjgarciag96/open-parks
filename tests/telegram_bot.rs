@@ -160,10 +160,62 @@ fn reply(chat_id: i64, text: &str) -> Sent {
 }
 
 #[tokio::test]
-async fn start_subscribes_the_chat_and_replies_with_the_status_and_what_is_stored() {
+async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing() {
     let bot = Bot::start(closed()).await;
 
-    bot.handle("message", private_message(42, Some("es"), "/start"))
+    bot.handle("message", private_message(42, Some("en"), "/start"))
+        .await;
+
+    assert_eq!(bot.subscribers().await, []);
+    assert_eq!(
+        bot.replies(),
+        [reply(
+            42,
+            "Tells you when Madrid’s Retiro Park closes or reopens, based on City Council \
+             data. Send /subscribe to get notified, /status to check now and /unsubscribe \
+             to stop.\n\n\
+             Is Retiro Park open?\n\
+             Closed\n\n\
+             Dates: 13/10/2026\n\
+             Reopening: Once inspections finish\n\
+             Notes: Viento fuerte"
+        )]
+    );
+}
+
+#[tokio::test]
+async fn start_replies_in_the_subscribed_chats_language() {
+    let bot = Bot::start(open()).await;
+    bot.handle("message", private_message(42, Some("es"), "/subscribe"))
+        .await;
+
+    bot.handle("message", private_message(42, Some("en"), "/start"))
+        .await;
+
+    assert!(
+        bot.replies()[1].text.starts_with("Te avisa cuando"),
+        "got {:?}",
+        bot.replies()
+    );
+}
+
+#[tokio::test]
+async fn stop_still_unsubscribes() {
+    let bot = Bot::start(open()).await;
+    bot.handle("message", private_message(42, Some("en"), "/subscribe"))
+        .await;
+
+    bot.handle("message", private_message(42, Some("en"), "/stop"))
+        .await;
+
+    assert_eq!(bot.subscribers().await, []);
+}
+
+#[tokio::test]
+async fn subscribe_subscribes_the_chat_and_replies_with_the_status_and_what_is_stored() {
+    let bot = Bot::start(closed()).await;
+
+    bot.handle("message", private_message(42, Some("es"), "/subscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(42, Lang::Es)]);
@@ -178,18 +230,18 @@ async fn start_subscribes_the_chat_and_replies_with_the_status_and_what_is_store
              Reapertura: Cuando terminen las inspecciones\n\
              Observaciones: Viento fuerte\n\n\
              Para avisarte guardamos el ID de este chat (42) y el idioma (español). \
-             /stop deja de avisarte y los borra."
+             /unsubscribe deja de avisarte y los borra."
         )]
     );
 }
 
 #[tokio::test]
-async fn start_again_keeps_one_subscription_in_the_latest_language() {
+async fn subscribe_again_keeps_one_subscription_in_the_latest_language() {
     let bot = Bot::start(closed()).await;
 
-    bot.handle("message", private_message(42, Some("es"), "/start"))
+    bot.handle("message", private_message(42, Some("es"), "/subscribe"))
         .await;
-    bot.handle("message", private_message(42, Some("en"), "/start"))
+    bot.handle("message", private_message(42, Some("en"), "/subscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(42, Lang::En)]);
@@ -197,14 +249,14 @@ async fn start_again_keeps_one_subscription_in_the_latest_language() {
 }
 
 #[tokio::test]
-async fn start_replies_in_english_to_anyone_not_using_telegram_in_spanish() {
+async fn subscribe_replies_in_english_to_anyone_not_using_telegram_in_spanish() {
     let bot = Bot::start(open()).await;
 
-    bot.handle("message", private_message(1, Some("es-419"), "/start"))
+    bot.handle("message", private_message(1, Some("es-419"), "/subscribe"))
         .await;
-    bot.handle("message", private_message(2, Some("fr"), "/start"))
+    bot.handle("message", private_message(2, Some("fr"), "/subscribe"))
         .await;
-    bot.handle("message", private_message(3, None, "/start"))
+    bot.handle("message", private_message(3, None, "/subscribe"))
         .await;
 
     assert_eq!(
@@ -223,16 +275,16 @@ async fn start_replies_in_english_to_anyone_not_using_telegram_in_spanish() {
              Is Retiro Park open?\n\
              Open\n\n\
              To notify you, we store this chat’s ID (3) and language (English). \
-             /stop ends the notifications and deletes both."
+             /unsubscribe ends the notifications and deletes both."
         )
     );
 }
 
 #[tokio::test]
-async fn start_says_the_status_isnt_known_yet_before_a_fetch_succeeds() {
+async fn subscribe_says_the_status_isnt_known_yet_before_a_fetch_succeeds() {
     let bot = Bot::start(failed()).await;
 
-    bot.handle("message", private_message(42, Some("en"), "/start"))
+    bot.handle("message", private_message(42, Some("en"), "/subscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(42, Lang::En)]);
@@ -259,7 +311,7 @@ fn group_message(text: &str) -> Value {
 async fn a_group_subscribes_with_a_command_addressed_to_the_bot() {
     let bot = Bot::start(open()).await;
 
-    bot.handle("message", group_message("/start@retiroabiertobot"))
+    bot.handle("message", group_message("/subscribe@retiroabiertobot"))
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(-42, Lang::Es)]);
@@ -270,7 +322,7 @@ async fn a_group_subscribes_with_a_command_addressed_to_the_bot() {
 async fn commands_addressed_to_another_bot_are_ignored() {
     let bot = Bot::start(open()).await;
 
-    bot.handle("message", group_message("/start@SomeOtherBot"))
+    bot.handle("message", group_message("/subscribe@SomeOtherBot"))
         .await;
 
     assert_eq!(bot.subscribers().await, []);
@@ -281,8 +333,11 @@ async fn commands_addressed_to_another_bot_are_ignored() {
 async fn messages_that_arent_commands_are_ignored() {
     let bot = Bot::start(open()).await;
 
-    bot.handle("message", private_message(42, Some("es"), "hola /start"))
-        .await;
+    bot.handle(
+        "message",
+        private_message(42, Some("es"), "hola /subscribe"),
+    )
+    .await;
     bot.handle("message", private_message(42, Some("es"), "/help"))
         .await;
 
@@ -300,7 +355,7 @@ async fn a_channel_subscribes_in_english_with_a_post() {
             "message_id": 1,
             "date": 0,
             "chat": { "id": -100123, "type": "channel", "title": "Retiro" },
-            "text": "/start",
+            "text": "/subscribe",
         }),
     )
     .await;
@@ -310,13 +365,13 @@ async fn a_channel_subscribes_in_english_with_a_post() {
 }
 
 #[tokio::test]
-async fn stop_unsubscribes_and_replies_in_the_chats_language() {
+async fn unsubscribe_unsubscribes_and_replies_in_the_chats_language() {
     let bot = Bot::start(open()).await;
-    bot.handle("message", private_message(42, Some("es"), "/start"))
+    bot.handle("message", private_message(42, Some("es"), "/subscribe"))
         .await;
 
     // Someone else in the chat, using Telegram in English.
-    bot.handle("message", private_message(42, Some("en"), "/stop"))
+    bot.handle("message", private_message(42, Some("en"), "/unsubscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, []);
@@ -330,10 +385,10 @@ async fn stop_unsubscribes_and_replies_in_the_chats_language() {
 }
 
 #[tokio::test]
-async fn stop_without_a_subscription_still_replies() {
+async fn unsubscribe_without_a_subscription_still_replies() {
     let bot = Bot::start(open()).await;
 
-    bot.handle("message", private_message(42, Some("en"), "/stop"))
+    bot.handle("message", private_message(42, Some("en"), "/unsubscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, []);
@@ -371,7 +426,7 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
 #[tokio::test]
 async fn status_replies_in_the_subscribed_chats_language() {
     let bot = Bot::start(open()).await;
-    bot.handle("message", private_message(42, Some("es"), "/start"))
+    bot.handle("message", private_message(42, Some("es"), "/subscribe"))
         .await;
 
     bot.handle("message", private_message(42, None, "/status"))
@@ -415,7 +470,7 @@ async fn removing_the_bot_from_a_chat_unsubscribes_it() {
     let bot = Bot::start(open()).await;
     for chat_id in [-1, -2, -3] {
         bot.handle("message", {
-            let mut message = group_message("/start");
+            let mut message = group_message("/subscribe");
             message["chat"]["id"] = chat_id.into();
             message
         })
@@ -441,9 +496,10 @@ async fn the_commands_are_set_at_startup_in_spanish_and_by_default_in_english() 
                 "setMyCommands",
                 json!({
                     "commands": [
-                        { "command": "start", "description": "Get notified when Retiro closes or reopens" },
-                        { "command": "stop", "description": "Stop the notifications" },
+                        { "command": "start", "description": "What this bot does" },
                         { "command": "status", "description": "Is Retiro open now?" },
+                        { "command": "subscribe", "description": "Get notified when Retiro closes or reopens" },
+                        { "command": "unsubscribe", "description": "Stop the notifications" },
                     ],
                 }),
             ),
@@ -451,9 +507,10 @@ async fn the_commands_are_set_at_startup_in_spanish_and_by_default_in_english() 
                 "setMyCommands",
                 json!({
                     "commands": [
-                        { "command": "start", "description": "Recibe un aviso cuando el Retiro cierre o vuelva a abrir" },
-                        { "command": "stop", "description": "Deja de recibir avisos" },
+                        { "command": "start", "description": "Qué hace este bot" },
                         { "command": "status", "description": "¿Está abierto el Retiro ahora?" },
+                        { "command": "subscribe", "description": "Recibe un aviso cuando el Retiro cierre o vuelva a abrir" },
+                        { "command": "unsubscribe", "description": "Deja de recibir avisos" },
                     ],
                     "language_code": "es",
                 }),
@@ -473,17 +530,17 @@ async fn the_descriptions_are_set_at_startup_in_spanish_and_by_default_in_englis
                 "setMyDescription",
                 json!({
                     "description": "Tells you when Madrid’s Retiro Park closes or reopens, \
-                        based on City Council data. Send /start to get notified, \
-                        /status to check now and /stop to stop.",
+                        based on City Council data. Send /subscribe to get notified, \
+                        /status to check now and /unsubscribe to stop.",
                 }),
             ),
             call(
                 "setMyDescription",
                 json!({
                     "description": "Te avisa cuando el parque del Retiro de Madrid cierra o \
-                        vuelve a abrir, a partir de los datos del Ayuntamiento. Envía /start \
-                        para recibir avisos, /status para consultarlo ahora y /stop para \
-                        dejar de recibirlos.",
+                        vuelve a abrir, a partir de los datos del Ayuntamiento. Envía /subscribe \
+                        para recibir avisos, /status para consultarlo ahora y /unsubscribe \
+                        para dejar de recibirlos.",
                     "language_code": "es",
                 }),
             ),
@@ -515,7 +572,7 @@ async fn failing_to_set_the_commands_still_sets_the_descriptions_and_answers_com
 
     bot.profile("setMyDescription").await;
     bot.profile("setMyShortDescription").await;
-    bot.handle("message", private_message(42, Some("en"), "/start"))
+    bot.handle("message", private_message(42, Some("en"), "/subscribe"))
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(42, Lang::En)]);

@@ -97,18 +97,35 @@ struct Bot {
 #[derive(Debug, Clone, Copy)]
 enum Command {
     Start,
-    Stop,
     Status,
+    Subscribe,
+    Unsubscribe,
 }
 
 impl Command {
-    const ALL: [Command; 3] = [Command::Start, Command::Stop, Command::Status];
+    const ALL: [Command; 4] = [
+        Command::Start,
+        Command::Status,
+        Command::Subscribe,
+        Command::Unsubscribe,
+    ];
 
     fn name(self) -> &'static str {
         match self {
             Command::Start => "start",
-            Command::Stop => "stop",
             Command::Status => "status",
+            Command::Subscribe => "subscribe",
+            Command::Unsubscribe => "unsubscribe",
+        }
+    }
+
+    fn named(name: &str) -> Option<Command> {
+        match name {
+            // What /unsubscribe was called before; earlier replies mention it.
+            "stop" => Some(Command::Unsubscribe),
+            _ => Command::ALL
+                .into_iter()
+                .find(|command| command.name() == name),
         }
     }
 }
@@ -162,9 +179,7 @@ impl Bot {
         if addressee.is_some_and(|addressee| !addressee.eq_ignore_ascii_case(&self.username)) {
             return None;
         }
-        Command::ALL
-            .into_iter()
-            .find(|command| command.name() == name)
+        Command::named(name)
     }
 
     async fn reply(
@@ -176,6 +191,10 @@ impl Bot {
         let sender_lang = sender_lang(from);
         Ok(match command {
             Command::Start => {
+                let lang = self.chat_lang(chat, sender_lang).await?;
+                format!("{}\n\n{}", replies(lang).description, self.status(lang))
+            }
+            Command::Subscribe => {
                 self.subscribers
                     .add(Subscriber {
                         chat,
@@ -190,7 +209,7 @@ impl Bot {
                     (replies.stored)(chat)
                 )
             }
-            Command::Stop => {
+            Command::Unsubscribe => {
                 let lang = self.chat_lang(chat, sender_lang).await?;
                 self.subscribers.remove(chat).await?;
                 replies(lang).stopped.to_owned()
@@ -244,19 +263,20 @@ fn replies(lang: Lang) -> &'static Replies {
 
 const ES: Replies = Replies {
     command: |command| match command {
-        Command::Start => "Recibe un aviso cuando el Retiro cierre o vuelva a abrir",
-        Command::Stop => "Deja de recibir avisos",
+        Command::Start => "Qué hace este bot",
         Command::Status => "¿Está abierto el Retiro ahora?",
+        Command::Subscribe => "Recibe un aviso cuando el Retiro cierre o vuelva a abrir",
+        Command::Unsubscribe => "Deja de recibir avisos",
     },
     description: "Te avisa cuando el parque del Retiro de Madrid cierra o vuelve a abrir, \
-                  a partir de los datos del Ayuntamiento. Envía /start para recibir avisos, \
-                  /status para consultarlo ahora y /stop para dejar de recibirlos.",
+                  a partir de los datos del Ayuntamiento. Envía /subscribe para recibir avisos, \
+                  /status para consultarlo ahora y /unsubscribe para dejar de recibirlos.",
     short_description: "Te avisa cuando el Retiro cierra o vuelve a abrir.",
     subscribed: "Te avisaremos cuando el Retiro cierre o vuelva a abrir.",
     stored: |chat| {
         format!(
             "Para avisarte guardamos el ID de este chat ({}) y el idioma (español). \
-             /stop deja de avisarte y los borra.",
+             /unsubscribe deja de avisarte y los borra.",
             chat.0
         )
     },
@@ -266,18 +286,20 @@ const ES: Replies = Replies {
 
 const EN: Replies = Replies {
     command: |command| match command {
-        Command::Start => "Get notified when Retiro closes or reopens",
-        Command::Stop => "Stop the notifications",
+        Command::Start => "What this bot does",
         Command::Status => "Is Retiro open now?",
+        Command::Subscribe => "Get notified when Retiro closes or reopens",
+        Command::Unsubscribe => "Stop the notifications",
     },
     description: "Tells you when Madrid’s Retiro Park closes or reopens, based on City Council \
-                  data. Send /start to get notified, /status to check now and /stop to stop.",
+                  data. Send /subscribe to get notified, /status to check now and /unsubscribe \
+                  to stop.",
     short_description: "Notifies you when Retiro Park closes or reopens.",
     subscribed: "You’ll be notified when Retiro closes or reopens.",
     stored: |chat| {
         format!(
             "To notify you, we store this chat’s ID ({}) and language (English). \
-             /stop ends the notifications and deletes both.",
+             /unsubscribe ends the notifications and deletes both.",
             chat.0
         )
     },

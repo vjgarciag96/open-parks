@@ -72,15 +72,18 @@ Set `OPEN_PARKS_TELEGRAM_BOT_TOKEN` to run the Telegram bot; it also needs
 `OPEN_PARKS_TELEGRAM_BOT_USERNAME` (the bot's username, without the `@`) and
 `OPEN_PARKS_DATABASE`. The username alone is enough for the page to link to
 the bot. The bot long-polls for updates, so it needs no public
-endpoint, and answers three commands in private chats, groups and channels
+endpoint, and answers four commands in private chats, groups and channels
 (including `/command@<bot>` in groups):
 
-- `/start` subscribes the chat and replies with the current status and what
-  is stored: the chat ID and the language, Spanish when the sender's Telegram
-  is in Spanish and English otherwise (channels have no sender, so English).
-  Sending it again updates the language.
-- `/stop` unsubscribes the chat and deletes both. Anyone in the chat can use it.
+- `/start`, what Telegram sends when someone opens the bot, explains what the
+  bot does and replies with the current status. It doesn't subscribe.
 - `/status` replies with the current status, or says it isn't known yet.
+- `/subscribe` subscribes the chat and replies with the current status and
+  what is stored: the chat ID and the language, Spanish when the sender's
+  Telegram is in Spanish and English otherwise (channels have no sender, so
+  English). Sending it again updates the language.
+- `/unsubscribe` unsubscribes the chat and deletes both. Anyone in the chat
+  can use it. `/stop`, its former name, still works.
 
 Removing the bot from a chat unsubscribes it too.
 
