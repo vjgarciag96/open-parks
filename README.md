@@ -21,7 +21,9 @@ CI runs the last three on every push to `main` and on pull requests.
 To see the page in every state, run `cargo run --example preview` and open
 the `target/preview/index.html` it prints. It renders both languages for every
 fixture in `tests/fixtures/sigma` that decodes, the most detailed status at a
-few ages (including stale), and both error pages, with no server or SIGMA.
+few ages (including stale), and both error pages, with no server or SIGMA. The
+most detailed status and the timeout page are also rendered with the link to a
+Telegram bot.
 
 ## Container
 
@@ -68,7 +70,8 @@ state.
 
 Set `OPEN_PARKS_TELEGRAM_BOT_TOKEN` to run the Telegram bot; it also needs
 `OPEN_PARKS_TELEGRAM_BOT_USERNAME` (the bot's username, without the `@`) and
-`OPEN_PARKS_DATABASE`. The bot long-polls for updates, so it needs no public
+`OPEN_PARKS_DATABASE`. The username alone is enough for the page to link to
+the bot. The bot long-polls for updates, so it needs no public
 endpoint, and answers three commands in private chats, groups and channels
 (including `/command@<bot>` in groups):
 
@@ -109,6 +112,10 @@ Under the verdict, the page lists whichever of the dates, hours, reopening
 forecast and notes SIGMA gave, and says how long ago the status was fetched.
 Once that is ten minutes or more (ten missed refreshes), it also warns that the
 status may be out of date.
+
+When `OPEN_PARKS_TELEGRAM_BOT_USERNAME` is set, the page links to
+`https://t.me/<bot>` to get notified on Telegram, even when the status couldn't
+be fetched. Without it, there's no link.
 
 `GET /` redirects (`302 Found`) to the language the browser's `Accept-Language`
 ranks highest, or to `/es` when it accepts neither. Each language has its own

@@ -17,7 +17,8 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma = sigma_client()?;
-    let telegram = telegram_bot()?;
+    let telegram_bot_username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?;
+    let telegram = telegram_bot(telegram_bot_username.clone())?;
     let database = notification_database(telegram.is_some())?;
     let listener = tokio::net::TcpListener::bind(&address)
         .await
@@ -37,7 +38,11 @@ async fn main() -> io::Result<()> {
             .await
             .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
     }
-    let app = api::router(latest.clone()).merge(page::router(latest, Timestamp::now));
+    let app = api::router(latest.clone()).merge(page::router(
+        latest,
+        Timestamp::now,
+        telegram_bot_username,
+    ));
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
             tokio::select! {
@@ -61,11 +66,11 @@ fn sigma_client() -> io::Result<sigma::Client> {
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
 }
 
-fn telegram_bot() -> io::Result<Option<(telegram::Client, String)>> {
+fn telegram_bot(username: Option<String>) -> io::Result<Option<(telegram::Client, String)>> {
     let Some(token) = env_var("OPEN_PARKS_TELEGRAM_BOT_TOKEN")?.map(BotToken::new) else {
         return Ok(None);
     };
-    let username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?.ok_or_else(|| {
+    let username = username.ok_or_else(|| {
         io::Error::other(
             "OPEN_PARKS_TELEGRAM_BOT_USERNAME must be set when OPEN_PARKS_TELEGRAM_BOT_TOKEN is",
         )

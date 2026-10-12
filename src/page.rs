@@ -16,6 +16,7 @@ use crate::poller::{Fetched, Latest};
 use crate::strings::{Age, Lang, Strings};
 
 const STYLE: &str = include_str!("page.css");
+const TELEGRAM_LOGO: &str = include_str!("page/telegram_logo.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
@@ -25,9 +26,14 @@ const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.
 struct Status {
     latest: watch::Receiver<Latest>,
     clock: Arc<dyn Clock>,
+    telegram_bot_username: Option<Arc<str>>,
 }
 
-pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
+pub fn router(
+    latest: watch::Receiver<Latest>,
+    clock: impl Clock,
+    telegram_bot_username: Option<String>,
+) -> Router {
     Router::new()
         .route(
             "/",
@@ -38,6 +44,7 @@ pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
         .with_state(Status {
             latest,
             clock: Arc::new(clock),
+            telegram_bot_username: telegram_bot_username.map(Arc::from),
         })
 }
 
@@ -100,15 +107,24 @@ fn quality(params: &str) -> Option<f32> {
     }
 }
 
-fn retiro_status(State(Status { latest, clock }): State<Status>, lang: Lang) -> Response {
+fn retiro_status(
+    State(Status {
+        latest,
+        clock,
+        telegram_bot_username,
+    }): State<Status>,
+    lang: Lang,
+) -> Response {
     let strings = lang.strings();
     let other = lang.other().strings();
+    let telegram_bot_username = telegram_bot_username.as_deref();
     match &*latest.borrow() {
         Ok(fetched) => {
             let answer = (strings.headline)(fetched.status.code.verdict());
             render(
                 strings,
                 other,
+                telegram_bot_username,
                 answer,
                 details(strings, fetched, clock.now()),
             )
@@ -116,7 +132,13 @@ fn retiro_status(State(Status { latest, clock }): State<Status>, lang: Lang) -> 
         }
         Err(error) => {
             let (status, _) = upstream_failure_status(error);
-            let page = render(strings, other, strings.upstream_failure, html! {});
+            let page = render(
+                strings,
+                other,
+                telegram_bot_username,
+                strings.upstream_failure,
+                html! {},
+            );
             (status, page).into_response()
         }
     }
@@ -150,7 +172,13 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
     }
 }
 
-fn render(strings: &Strings, other: &Strings, answer: &str, details: Markup) -> Markup {
+fn render(
+    strings: &Strings,
+    other: &Strings,
+    telegram_bot_username: Option<&str>,
+    answer: &str,
+    details: Markup,
+) -> Markup {
     html! {
         (DOCTYPE)
         html lang=(strings.code) {
@@ -169,6 +197,14 @@ fn render(strings: &Strings, other: &Strings, answer: &str, details: Markup) -> 
                 p { (strings.question) }
                 h1 { (answer) }
                 (details)
+                @if let Some(bot) = telegram_bot_username {
+                    p.telegram {
+                        a href={ "https://t.me/" (bot) } {
+                            (PreEscaped(TELEGRAM_LOGO))
+                            (strings.telegram)
+                        }
+                    }
+                }
                 footer {
                     (strings.source_lead)
                     a href=(SOURCE_URL) { (strings.source_link) }

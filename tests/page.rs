@@ -14,11 +14,20 @@ use common::fixture;
 
 const FETCHED_AT: &str = "2026-10-11T09:30:00Z";
 
-async fn send(latest: Latest, now: Timestamp, request: Request<Body>) -> Response {
-    page::router(watch::channel(latest).1, move || now)
-        .oneshot(request)
-        .await
-        .unwrap()
+async fn send(
+    latest: Latest,
+    now: Timestamp,
+    telegram_bot_username: Option<&str>,
+    request: Request<Body>,
+) -> Response {
+    page::router(
+        watch::channel(latest).1,
+        move || now,
+        telegram_bot_username.map(str::to_owned),
+    )
+    .oneshot(request)
+    .await
+    .unwrap()
 }
 
 async fn get(latest: Latest, uri: &str) -> Response {
@@ -26,7 +35,24 @@ async fn get(latest: Latest, uri: &str) -> Response {
 }
 
 async fn get_at(latest: Latest, now: Timestamp, uri: &str) -> Response {
-    send(latest, now, Request::get(uri).body(Body::empty()).unwrap()).await
+    send(
+        latest,
+        now,
+        None,
+        Request::get(uri).body(Body::empty()).unwrap(),
+    )
+    .await
+}
+
+async fn get_with_bot(latest: Latest, uri: &str) -> Response {
+    let request = Request::get(uri).body(Body::empty()).unwrap();
+    send(
+        latest,
+        FETCHED_AT.parse().unwrap(),
+        Some("retiro_abierto_bot"),
+        request,
+    )
+    .await
 }
 
 async fn get_accepting(accept_language: &str) -> Response {
@@ -34,7 +60,7 @@ async fn get_accepting(accept_language: &str) -> Response {
         .header(header::ACCEPT_LANGUAGE, accept_language)
         .body(Body::empty())
         .unwrap();
-    send(fetched("code_1_open.json"), Timestamp::now(), request).await
+    send(fetched("code_1_open.json"), Timestamp::now(), None, request).await
 }
 
 fn fetched(fixture_name: &str) -> Latest {
@@ -405,5 +431,50 @@ async fn the_status_details_are_shown_in_english() {
         "This status may be out of date.",
     ] {
         assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_page_links_to_the_telegram_bot_when_there_is_one() {
+    for latest in [
+        || fetched("code_1_open.json"),
+        || Err(sigma::FetchError::Timeout),
+    ] {
+        let spanish = text_body(get_with_bot(latest(), "/es").await).await;
+        let english = text_body(get_with_bot(latest(), "/en").await).await;
+
+        assert!(
+            spanish
+                .contains(r#"<a href="https://t.me/retiro_abierto_bot"><svg aria-hidden="true""#),
+            "{spanish}"
+        );
+        assert!(
+            english
+                .contains(r#"<a href="https://t.me/retiro_abierto_bot"><svg aria-hidden="true""#),
+            "{english}"
+        );
+        assert!(
+            spanish.contains("</svg>Recibe avisos en Telegram</a>"),
+            "{spanish}"
+        );
+        assert!(
+            english.contains("</svg>Get notified on Telegram</a>"),
+            "{english}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_page_has_no_telegram_link_without_a_bot() {
+    for latest in [
+        || fetched("code_1_open.json"),
+        || Err(sigma::FetchError::Timeout),
+    ] {
+        for uri in ["/es", "/en"] {
+            let body = text_body(get(latest(), uri).await).await;
+
+            assert!(!body.contains("t.me"), "{uri}: {body}");
+            assert!(!body.contains("Telegram"), "{uri}: {body}");
+        }
     }
 }
