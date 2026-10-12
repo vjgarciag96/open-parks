@@ -16,6 +16,7 @@ use crate::poller::{Fetched, Latest};
 use crate::strings::{Age, Lang, Strings};
 
 const STYLE: &str = include_str!("page.css");
+const TELEGRAM_LOGO: &str = include_str!("telegram.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
@@ -198,7 +199,10 @@ fn render(
                 (details)
                 @if let Some(bot) = telegram_bot_username {
                     p.telegram {
-                        a href={ "https://t.me/" (bot) } { (strings.telegram) }
+                        a href={ "https://t.me/" (bot) } {
+                            (PreEscaped(TELEGRAM_LOGO))
+                            (strings.telegram)
+                        }
                     }
                 }
                 footer {

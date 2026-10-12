@@ -444,15 +444,21 @@ async fn the_page_links_to_the_telegram_bot_when_there_is_one() {
         let english = text_body(get_with_bot(latest(), "/en").await).await;
 
         assert!(
-            spanish.contains(
-                r#"<a href="https://t.me/retiro_abierto_bot">Recibe avisos en Telegram</a>"#
-            ),
+            spanish
+                .contains(r#"<a href="https://t.me/retiro_abierto_bot"><svg aria-hidden="true""#),
             "{spanish}"
         );
         assert!(
-            english.contains(
-                r#"<a href="https://t.me/retiro_abierto_bot">Get notified on Telegram</a>"#
-            ),
+            english
+                .contains(r#"<a href="https://t.me/retiro_abierto_bot"><svg aria-hidden="true""#),
+            "{english}"
+        );
+        assert!(
+            spanish.contains("</svg>Recibe avisos en Telegram</a>"),
+            "{spanish}"
+        );
+        assert!(
+            english.contains("</svg>Get notified on Telegram</a>"),
             "{english}"
         );
     }

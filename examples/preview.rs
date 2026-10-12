@@ -84,14 +84,14 @@ fn previews() -> std::io::Result<Vec<Preview>> {
             previews.push(fetched(".5_minutes_old", 5, None));
             previews.push(fetched(".stale", 15, None));
             previews.push(fetched(".2_days_old", 2 * 24 * 60, None));
-            previews.push(fetched(".telegram_bot_username", 0, Some(TELEGRAM_BOT)));
+            previews.push(fetched(".telegram_bot", 0, Some(TELEGRAM_BOT)));
         }
     }
     for (name, error, telegram_bot_username) in [
         ("upstream_error", FetchError::BodyTooLarge, None),
         ("upstream_timeout", FetchError::Timeout, None),
         (
-            "upstream_timeout.telegram_bot_username",
+            "upstream_timeout.telegram_bot",
             FetchError::Timeout,
             Some(TELEGRAM_BOT),
         ),

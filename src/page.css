@@ -69,3 +69,15 @@ dd {
 .telegram {
   margin-top: 1.5rem;
 }
+
+.telegram a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.telegram svg {
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+}
