@@ -81,6 +81,10 @@ endpoint, and answers three commands in private chats, groups and channels
 
 Removing the bot from a chat unsubscribes it too.
 
+At startup the bot sets its command list, description and short description
+in Spanish and, for every other language, in English, so BotFather is only
+needed to create the bot. A failure is logged and the bot runs without them.
+
 Each notification is sent to every subscriber in their language: what
 changed (a closure, a closure expected, an expected closure that has begun,
 a closure that's over but still expected, or a reopening), the verdict, whichever of the dates, hours, reopening

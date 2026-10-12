@@ -3,8 +3,8 @@ use std::time::Duration;
 use tokio::sync::watch;
 
 use super::{
-    ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers, UpdateKind,
-    User, write_details,
+    BotCommand, ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers,
+    UpdateKind, User, write_details,
 };
 use crate::database::DatabaseError;
 use crate::poller::{Latest, with_sources};
@@ -19,6 +19,7 @@ pub fn start(
     subscribers: Subscribers,
     latest: watch::Receiver<Latest>,
 ) {
+    tokio::spawn(introduce(client.clone()));
     tokio::spawn(async move {
         let bot = Bot {
             client,
@@ -46,6 +47,39 @@ pub fn start(
     });
 }
 
+async fn introduce(client: Client) {
+    for (language_code, lang) in [(None, Lang::En), (Some(Lang::Es.strings().code), Lang::Es)] {
+        let replies = replies(lang);
+        let commands = Command::ALL.map(|command| BotCommand {
+            command: command.name(),
+            description: (replies.command)(command),
+        });
+        let set = [
+            (
+                "commands",
+                client.set_my_commands(&commands, language_code).await,
+            ),
+            (
+                "description",
+                client
+                    .set_my_description(replies.description, language_code)
+                    .await,
+            ),
+            (
+                "short description",
+                client
+                    .set_my_short_description(replies.short_description, language_code)
+                    .await,
+            ),
+        ];
+        for (what, result) in set {
+            if let Err(error) = result {
+                eprintln!("setting the bot's {what}: {}", with_sources(&error));
+            }
+        }
+    }
+}
+
 fn retry_after(error: &RequestError) -> Duration {
     match error {
         RequestError::RateLimited { retry_after } => *retry_after,
@@ -65,6 +99,18 @@ enum Command {
     Start,
     Stop,
     Status,
+}
+
+impl Command {
+    const ALL: [Command; 3] = [Command::Start, Command::Stop, Command::Status];
+
+    fn name(self) -> &'static str {
+        match self {
+            Command::Start => "start",
+            Command::Stop => "stop",
+            Command::Status => "status",
+        }
+    }
 }
 
 impl Bot {
@@ -116,12 +162,9 @@ impl Bot {
         if addressee.is_some_and(|addressee| !addressee.eq_ignore_ascii_case(&self.username)) {
             return None;
         }
-        match name {
-            "start" => Some(Command::Start),
-            "stop" => Some(Command::Stop),
-            "status" => Some(Command::Status),
-            _ => None,
-        }
+        Command::ALL
+            .into_iter()
+            .find(|command| command.name() == name)
     }
 
     async fn reply(
@@ -183,6 +226,9 @@ fn sender_lang(from: Option<&User>) -> Lang {
 }
 
 struct Replies {
+    command: fn(Command) -> &'static str,
+    description: &'static str,
+    short_description: &'static str,
     subscribed: &'static str,
     stored: fn(ChatId) -> String,
     stopped: &'static str,
@@ -197,6 +243,15 @@ fn replies(lang: Lang) -> &'static Replies {
 }
 
 const ES: Replies = Replies {
+    command: |command| match command {
+        Command::Start => "Recibe un aviso cuando el Retiro cierre o vuelva a abrir",
+        Command::Stop => "Deja de recibir avisos",
+        Command::Status => "¿Está abierto el Retiro ahora?",
+    },
+    description: "Te avisa cuando el parque del Retiro de Madrid cierra o vuelve a abrir, \
+                  a partir de los datos del Ayuntamiento. Envía /start para recibir avisos, \
+                  /status para consultarlo ahora y /stop para dejar de recibirlos.",
+    short_description: "Te avisa cuando el Retiro cierra o vuelve a abrir.",
     subscribed: "Te avisaremos cuando el Retiro cierre o vuelva a abrir.",
     stored: |chat| {
         format!(
@@ -210,6 +265,14 @@ const ES: Replies = Replies {
 };
 
 const EN: Replies = Replies {
+    command: |command| match command {
+        Command::Start => "Get notified when Retiro closes or reopens",
+        Command::Stop => "Stop the notifications",
+        Command::Status => "Is Retiro open now?",
+    },
+    description: "Tells you when Madrid’s Retiro Park closes or reopens, based on City Council \
+                  data. Send /start to get notified, /status to check now and /stop to stop.",
+    short_description: "Notifies you when Retiro Park closes or reopens.",
     subscribed: "You’ll be notified when Retiro closes or reopens.",
     stored: |chat| {
         format!(

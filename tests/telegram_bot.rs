@@ -13,7 +13,7 @@ use tokio::sync::watch;
 
 mod fake_telegram;
 mod timeouts;
-use fake_telegram::{FakeTelegram, Sent, TOKEN};
+use fake_telegram::{FakeTelegram, ProfileCall, Sent, TOKEN};
 use timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
@@ -28,9 +28,12 @@ struct Bot {
 
 impl Bot {
     async fn start(latest: Latest) -> Self {
+        Self::start_on(FakeTelegram::start().await, latest)
+    }
+
+    fn start_on(fake: FakeTelegram, latest: Latest) -> Self {
         let directory = TempDir::new().unwrap();
         let database = Database::open(&directory.path().join("open-parks.sqlite3")).unwrap();
-        let fake = FakeTelegram::start().await;
         let client = telegram::Client::new(
             fake.url.clone(),
             BotToken::new(TOKEN.to_owned()),
@@ -71,6 +74,22 @@ impl Bot {
 
     async fn subscribers(&self) -> Vec<Subscriber> {
         self.subscribers.all().await.unwrap()
+    }
+
+    async fn profile(&self, method: &str) -> Vec<ProfileCall> {
+        let calls = || -> Vec<ProfileCall> {
+            let calls = self.fake.profile().into_iter();
+            calls.filter(|call| call.method == method).collect()
+        };
+        let set = async {
+            while calls().len() < 2 {
+                tokio::time::sleep(OFTEN).await;
+            }
+        };
+        tokio::time::timeout(GENEROUS_TIMEOUT, set)
+            .await
+            .unwrap_or_else(|_| panic!("the bot never called {method} in both languages"));
+        calls()
     }
 
     fn replies(&self) -> Vec<Sent> {
@@ -117,6 +136,13 @@ fn private_message(chat_id: i64, language_code: Option<&str>, text: &str) -> Val
         "from": { "id": 7, "is_bot": false, "first_name": "Ana", "language_code": language_code },
         "text": text,
     })
+}
+
+fn call(method: &str, params: Value) -> ProfileCall {
+    ProfileCall {
+        method: method.to_owned(),
+        params,
+    }
 }
 
 fn subscriber(chat_id: i64, lang: Lang) -> Subscriber {
@@ -402,4 +428,96 @@ async fn removing_the_bot_from_a_chat_unsubscribes_it() {
         .await;
 
     assert_eq!(bot.subscribers().await, [subscriber(-3, Lang::Es)]);
+}
+
+#[tokio::test]
+async fn the_commands_are_set_at_startup_in_spanish_and_by_default_in_english() {
+    let bot = Bot::start(open()).await;
+
+    assert_eq!(
+        bot.profile("setMyCommands").await,
+        [
+            call(
+                "setMyCommands",
+                json!({
+                    "commands": [
+                        { "command": "start", "description": "Get notified when Retiro closes or reopens" },
+                        { "command": "stop", "description": "Stop the notifications" },
+                        { "command": "status", "description": "Is Retiro open now?" },
+                    ],
+                }),
+            ),
+            call(
+                "setMyCommands",
+                json!({
+                    "commands": [
+                        { "command": "start", "description": "Recibe un aviso cuando el Retiro cierre o vuelva a abrir" },
+                        { "command": "stop", "description": "Deja de recibir avisos" },
+                        { "command": "status", "description": "¿Está abierto el Retiro ahora?" },
+                    ],
+                    "language_code": "es",
+                }),
+            ),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn the_descriptions_are_set_at_startup_in_spanish_and_by_default_in_english() {
+    let bot = Bot::start(open()).await;
+
+    assert_eq!(
+        bot.profile("setMyDescription").await,
+        [
+            call(
+                "setMyDescription",
+                json!({
+                    "description": "Tells you when Madrid’s Retiro Park closes or reopens, \
+                        based on City Council data. Send /start to get notified, \
+                        /status to check now and /stop to stop.",
+                }),
+            ),
+            call(
+                "setMyDescription",
+                json!({
+                    "description": "Te avisa cuando el parque del Retiro de Madrid cierra o \
+                        vuelve a abrir, a partir de los datos del Ayuntamiento. Envía /start \
+                        para recibir avisos, /status para consultarlo ahora y /stop para \
+                        dejar de recibirlos.",
+                    "language_code": "es",
+                }),
+            ),
+        ]
+    );
+    assert_eq!(
+        bot.profile("setMyShortDescription").await,
+        [
+            call(
+                "setMyShortDescription",
+                json!({ "short_description": "Notifies you when Retiro Park closes or reopens." }),
+            ),
+            call(
+                "setMyShortDescription",
+                json!({
+                    "short_description": "Te avisa cuando el Retiro cierra o vuelve a abrir.",
+                    "language_code": "es",
+                }),
+            ),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn failing_to_set_the_commands_still_sets_the_descriptions_and_answers_commands() {
+    let fake = FakeTelegram::start().await;
+    fake.fail_profile_method("setMyCommands");
+    let bot = Bot::start_on(fake, open());
+
+    bot.profile("setMyDescription").await;
+    bot.profile("setMyShortDescription").await;
+    bot.handle("message", private_message(42, Some("en"), "/start"))
+        .await;
+
+    assert_eq!(bot.subscribers().await, [subscriber(42, Lang::En)]);
+    assert_eq!(bot.replies().len(), 1);
 }

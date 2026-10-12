@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -35,6 +35,14 @@ struct FakeState {
     sent_at: Vec<Instant>,
     allowed_updates: Option<Value>,
     failures: HashMap<i64, VecDeque<(StatusCode, Value)>>,
+    profile: Vec<ProfileCall>,
+    failing_profile_methods: HashSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProfileCall {
+    pub method: String,
+    pub params: Value,
 }
 
 #[allow(dead_code)]
@@ -78,6 +86,18 @@ impl FakeTelegram {
 
     pub fn sent_at(&self) -> Vec<Instant> {
         self.state.lock().unwrap().sent_at.clone()
+    }
+
+    pub fn profile(&self) -> Vec<ProfileCall> {
+        self.state.lock().unwrap().profile.clone()
+    }
+
+    pub fn fail_profile_method(&self, method: &str) {
+        self.state
+            .lock()
+            .unwrap()
+            .failing_profile_methods
+            .insert(method.to_owned());
     }
 
     pub fn fail_next_send(
@@ -152,6 +172,9 @@ async fn handle(
     match method.as_str() {
         "getUpdates" => get_updates(&fake, &params).await,
         "sendMessage" => send_message(&fake, &params),
+        "setMyCommands" | "setMyDescription" | "setMyShortDescription" => {
+            set_profile(&fake, method, params)
+        }
         _ => error(StatusCode::NOT_FOUND, "Not Found"),
     }
 }
@@ -209,6 +232,15 @@ fn send_message(fake: &FakeTelegram, params: &Value) -> Response {
         "chat": { "id": chat_id, "type": "private" },
         "text": text,
     }))
+}
+
+fn set_profile(fake: &FakeTelegram, method: String, params: Value) -> Response {
+    let mut state = fake.state.lock().unwrap();
+    if state.failing_profile_methods.contains(&method) {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error");
+    }
+    state.profile.push(ProfileCall { method, params });
+    ok(Value::Bool(true))
 }
 
 fn ok(result: Value) -> Response {

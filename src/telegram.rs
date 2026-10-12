@@ -99,6 +99,74 @@ impl Client {
         Ok(())
     }
 
+    /// Sets the commands listed to users whose language is `language_code`,
+    /// or to everyone else when it's `None`.
+    pub async fn set_my_commands(
+        &self,
+        commands: &[BotCommand],
+        language_code: Option<&str>,
+    ) -> Result<(), RequestError> {
+        #[derive(Serialize)]
+        struct Params<'a> {
+            commands: &'a [BotCommand],
+            #[serde(skip_serializing_if = "Option::is_none")]
+            language_code: Option<&'a str>,
+        }
+
+        self.set(
+            "setMyCommands",
+            &Params {
+                commands,
+                language_code,
+            },
+        )
+        .await
+    }
+
+    pub async fn set_my_description(
+        &self,
+        description: &str,
+        language_code: Option<&str>,
+    ) -> Result<(), RequestError> {
+        #[derive(Serialize)]
+        struct Params<'a> {
+            description: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            language_code: Option<&'a str>,
+        }
+
+        self.set(
+            "setMyDescription",
+            &Params {
+                description,
+                language_code,
+            },
+        )
+        .await
+    }
+
+    pub async fn set_my_short_description(
+        &self,
+        short_description: &str,
+        language_code: Option<&str>,
+    ) -> Result<(), RequestError> {
+        #[derive(Serialize)]
+        struct Params<'a> {
+            short_description: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            language_code: Option<&'a str>,
+        }
+
+        self.set(
+            "setMyShortDescription",
+            &Params {
+                short_description,
+                language_code,
+            },
+        )
+        .await
+    }
+
     pub async fn get_updates(
         &self,
         offset: Option<i64>,
@@ -126,6 +194,11 @@ impl Client {
             )
             .await?;
         Ok(updates.into_iter().map(Update::from).collect())
+    }
+
+    async fn set(&self, method: &str, params: &impl Serialize) -> Result<(), RequestError> {
+        let _: bool = self.call(method, params, self.timeout).await?;
+        Ok(())
     }
 
     async fn call<T: DeserializeOwned>(
@@ -182,6 +255,12 @@ impl Client {
             .push(method);
         url
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BotCommand {
+    pub command: &'static str,
+    pub description: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
