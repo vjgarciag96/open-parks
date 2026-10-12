@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use open_parks::database::Database;
-use open_parks::notifier::{self, Channels, Notification, notification};
+use open_parks::notifier::{self, Channels, LastStatus, Notification, notification};
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma::{self, FetchError};
@@ -42,16 +42,16 @@ fn failed() -> Latest {
     Err(FetchError::HttpStatus(StatusCode::SERVICE_UNAVAILABLE))
 }
 
+fn last_status(path: &Path) -> LastStatus {
+    LastStatus::new(Database::open(path).unwrap())
+}
+
 async fn stored(path: &Path) -> Option<AlertCode> {
-    Database::open(path).unwrap().last_code().await.unwrap()
+    last_status(path).code().await.unwrap()
 }
 
 async fn store(path: &Path, code: AlertCode) {
-    Database::open(path)
-        .unwrap()
-        .save_last_code(code)
-        .await
-        .unwrap();
+    last_status(path).save(code).await.unwrap();
 }
 
 async fn wait_until_stored(path: &Path, expected: AlertCode) {
@@ -69,7 +69,7 @@ async fn wait_until_stored(path: &Path, expected: AlertCode) {
 }
 
 async fn start(path: &Path, latest: watch::Receiver<Latest>) {
-    notifier::start(Database::open(path).unwrap(), latest, Channels::new())
+    notifier::start(last_status(path), latest, Channels::new())
         .await
         .unwrap();
 }
@@ -138,7 +138,7 @@ async fn startup_fails_when_the_stored_code_cannot_be_read() {
     let (_latest, receiver) = watch::channel(fetched("code_7_closed.json"));
 
     assert!(
-        notifier::start(database, receiver, Channels::new())
+        notifier::start(LastStatus::new(database), receiver, Channels::new())
             .await
             .is_err()
     );

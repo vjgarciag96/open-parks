@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use jiff::Timestamp;
 use open_parks::database::Database;
-use open_parks::notifier::{self, Channel, Channels, Notification};
+use open_parks::notifier::{self, Channel, Channels, LastStatus, Notification};
 use open_parks::park_status::{AlertCode, ParkStatus, Verdict};
 use open_parks::poller::{self, Latest};
 use open_parks::sigma;
@@ -81,7 +81,7 @@ async fn poll(upstream: &Upstream) -> watch::Receiver<Latest> {
 }
 
 async fn start(path: &Path, latest: watch::Receiver<Latest>, channels: Channels) {
-    notifier::start(Database::open(path).unwrap(), latest, channels)
+    notifier::start(last_status(path), latest, channels)
         .await
         .unwrap();
 }
@@ -110,8 +110,12 @@ async fn wait_for_code(latest: &mut watch::Receiver<Latest>, code: AlertCode) {
         .unwrap();
 }
 
+fn last_status(path: &Path) -> LastStatus {
+    LastStatus::new(Database::open(path).unwrap())
+}
+
 async fn stored(path: &Path) -> Option<AlertCode> {
-    Database::open(path).unwrap().last_code().await.unwrap()
+    last_status(path).code().await.unwrap()
 }
 
 async fn wait_until_stored(path: &Path, expected: AlertCode) {
@@ -196,11 +200,7 @@ async fn a_fresh_database_takes_the_first_fetch_as_the_baseline() {
 async fn after_a_restart_the_first_fetch_is_compared_to_the_stored_status() {
     let directory = TempDir::new().unwrap();
     let path = directory.path().join("open-parks.sqlite3");
-    Database::open(&path)
-        .unwrap()
-        .save_last_code(AlertCode::Closed)
-        .await
-        .unwrap();
+    last_status(&path).save(AlertCode::Closed).await.unwrap();
     let upstream = Upstream::serving("code_1_open.json").await;
     let (channel, mut received) = recording();
 
