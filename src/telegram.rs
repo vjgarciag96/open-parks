@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::http;
 
+mod bot;
+mod subscribers;
+pub use bot::start;
+pub use subscribers::{Subscriber, Subscribers};
+
 const API_URL: &str = "https://api.telegram.org";
 const TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
@@ -92,6 +97,7 @@ impl Client {
             #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i64>,
             timeout: u64,
+            allowed_updates: &'static [&'static str],
         }
 
         let updates: Vec<RawUpdate> = self
@@ -100,6 +106,9 @@ impl Client {
                 &Params {
                     offset,
                     timeout: long_poll.as_secs(),
+                    // Telegram keeps the last list asked for, so one from an
+                    // earlier deployment could leave out a kind decoded here.
+                    allowed_updates: &["message", "channel_post", "my_chat_member"],
                 },
                 self.timeout + long_poll,
             )

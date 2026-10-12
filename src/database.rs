@@ -8,11 +8,18 @@ use crate::park_status::AlertCode;
 use crate::sigma;
 
 // Append only; never edit a migration that has shipped.
-const MIGRATIONS: &[&str] = &["CREATE TABLE last_status (
+const MIGRATIONS: &[&str] = &[
+    "CREATE TABLE last_status (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         code INTEGER NOT NULL
-    ) STRICT;"];
+    ) STRICT;",
+    "CREATE TABLE telegram_subscribers (
+        chat_id INTEGER PRIMARY KEY,
+        language TEXT NOT NULL CHECK (language IN ('es', 'en'))
+    ) STRICT;",
+];
 
+#[derive(Clone)]
 pub struct Database {
     connection: Arc<Mutex<Connection>>,
 }
@@ -58,7 +65,7 @@ impl Database {
     }
 
     // SQLite blocks, so queries run off the async workers.
-    async fn query<T: Send + 'static>(
+    pub(crate) async fn query<T: Send + 'static>(
         &self,
         query: impl FnOnce(&Connection) -> Result<T, DatabaseError> + Send + 'static,
     ) -> Result<T, DatabaseError> {

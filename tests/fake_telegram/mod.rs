@@ -31,6 +31,7 @@ struct FakeState {
     next_update_id: i64,
     updates: Vec<Value>,
     sent: Vec<Sent>,
+    allowed_updates: Option<Value>,
     failures: HashMap<i64, VecDeque<(StatusCode, Value)>>,
 }
 
@@ -63,6 +64,10 @@ impl FakeTelegram {
 
     pub fn pending_updates(&self) -> Vec<Value> {
         self.state.lock().unwrap().updates.clone()
+    }
+
+    pub fn allowed_updates(&self) -> Option<Value> {
+        self.state.lock().unwrap().allowed_updates.clone()
     }
 
     pub fn sent(&self) -> Vec<Sent> {
@@ -147,6 +152,9 @@ async fn handle(
 
 async fn get_updates(fake: &FakeTelegram, params: &Value) -> Response {
     let offset = params["offset"].as_i64();
+    if let Some(allowed) = params.get("allowed_updates") {
+        fake.state.lock().unwrap().allowed_updates = Some(allowed.clone());
+    }
     let timeout = Duration::from_secs(params["timeout"].as_u64().unwrap_or(0));
     let deadline = tokio::time::Instant::now() + timeout;
     loop {

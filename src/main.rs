@@ -5,7 +5,7 @@ use std::{env, io};
 use jiff::Timestamp;
 use open_parks::database::Database;
 use open_parks::notifier::Channels;
-use open_parks::telegram::BotToken;
+use open_parks::telegram::{BotToken, Subscribers};
 use open_parks::{api, notifier, page, poller, sigma, telegram};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
@@ -17,8 +17,9 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma = sigma_client()?;
-    let channels = notification_channels()?;
-    let database = notification_database(&channels)?;
+    let telegram = telegram_bot()?;
+    let channels = Channels::new();
+    let database = notification_database(telegram.is_some() || !channels.is_empty())?;
     let listener = tokio::net::TcpListener::bind(&address)
         .await
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
@@ -26,9 +27,12 @@ async fn main() -> io::Result<()> {
     let mut terminate = signal(SignalKind::terminate())?;
     let latest = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
     if let Some(database) = database {
-        notifier::start(database, latest.clone(), channels)
+        notifier::start(database.clone(), latest.clone(), channels)
             .await
             .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
+        if let Some((client, username)) = telegram {
+            telegram::start(client, username, Subscribers::new(database), latest.clone());
+        }
     }
     let app = api::router(latest.clone()).merge(page::router(latest, Timestamp::now));
     axum::serve(listener, app)
@@ -54,23 +58,22 @@ fn sigma_client() -> io::Result<sigma::Client> {
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
 }
 
-fn notification_channels() -> io::Result<Channels> {
-    // No Telegram channel sends through it yet.
-    let _telegram = telegram_client()?;
-    Ok(Channels::new())
-}
-
-fn telegram_client() -> io::Result<Option<telegram::Client>> {
+fn telegram_bot() -> io::Result<Option<(telegram::Client, String)>> {
     let Some(token) = env_var("OPEN_PARKS_TELEGRAM_BOT_TOKEN")?.map(BotToken::new) else {
         return Ok(None);
     };
-    telegram::Client::live(token)
-        .map(Some)
-        .map_err(|error| io::Error::other(format!("building the Telegram client: {error}")))
+    let username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?.ok_or_else(|| {
+        io::Error::other(
+            "OPEN_PARKS_TELEGRAM_BOT_USERNAME must be set when OPEN_PARKS_TELEGRAM_BOT_TOKEN is",
+        )
+    })?;
+    let client = telegram::Client::live(token)
+        .map_err(|error| io::Error::other(format!("building the Telegram client: {error}")))?;
+    Ok(Some((client, username)))
 }
 
-fn notification_database(channels: &Channels) -> io::Result<Option<Database>> {
-    if channels.is_empty() {
+fn notification_database(needed: bool) -> io::Result<Option<Database>> {
+    if !needed {
         return Ok(None);
     }
     let path = env_var("OPEN_PARKS_DATABASE")?.ok_or_else(|| {

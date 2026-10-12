@@ -13,9 +13,7 @@ use crate::api::{to_the_second, upstream_failure_status};
 use crate::clock::Clock;
 use crate::park_status::ParkStatus;
 use crate::poller::{Fetched, Latest};
-
-mod strings;
-use strings::{Lang, Strings};
+use crate::strings::{Age, Lang, Strings};
 
 const STYLE: &str = include_str!("page.css");
 
@@ -138,39 +136,8 @@ fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
     }
 }
 
-#[derive(Clone, Copy)]
-enum Age {
-    UnderAMinute,
-    Minutes(i64),
-    Hours(i64),
-    Days(i64),
-}
-
-impl Age {
-    fn of(elapsed: SignedDuration) -> Age {
-        let minutes = elapsed.as_mins();
-        if minutes < 1 {
-            Age::UnderAMinute
-        } else if minutes < 60 {
-            Age::Minutes(minutes)
-        } else if minutes < 60 * 24 {
-            Age::Hours(minutes / 60)
-        } else {
-            Age::Days(minutes / (60 * 24))
-        }
-    }
-}
-
 fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
-    let mut rows = [
-        (strings.dates, status.dates.as_deref()),
-        (strings.hours, status.hours.as_deref()),
-        (strings.reopening, status.reopening.map(strings.forecast)),
-        (strings.notes, status.notes.as_deref()),
-    ]
-    .into_iter()
-    .filter_map(|(term, description)| Some((term, description?)))
-    .peekable();
+    let mut rows = strings.details(status).peekable();
     html! {
         @if rows.peek().is_some() {
             dl {
