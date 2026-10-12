@@ -4,7 +4,7 @@ use std::{env, io};
 
 use jiff::Timestamp;
 use open_parks::database::Database;
-use open_parks::notifier::Channels;
+use open_parks::notifier::{Channels, LastStatus};
 use open_parks::telegram::{BotToken, Broadcast, Pace, Subscribers};
 use open_parks::{api, notifier, page, poller, sigma, telegram};
 use reqwest::Url;
@@ -34,7 +34,7 @@ async fn main() -> io::Result<()> {
             channels = channels.with(broadcast);
             telegram::start(client, username, subscribers, latest.clone());
         }
-        notifier::start(database, latest.clone(), channels)
+        notifier::start(LastStatus::new(database), latest.clone(), channels)
             .await
             .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
     }

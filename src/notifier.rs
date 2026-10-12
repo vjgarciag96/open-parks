@@ -1,8 +1,11 @@
 use tokio::sync::{mpsc, watch};
 
-use crate::database::{Database, DatabaseError};
+use crate::database::DatabaseError;
 use crate::park_status::{AlertCode, ParkStatus, Verdict};
 use crate::poller::{Latest, with_sources};
+
+mod last_status;
+pub use last_status::LastStatus;
 
 pub trait Channel: Send + 'static {
     /// The channel's next notification waits until this returns.
@@ -38,11 +41,11 @@ impl Channels {
 }
 
 pub async fn start(
-    database: Database,
+    last_status: LastStatus,
     mut latest: watch::Receiver<Latest>,
     channels: Channels,
 ) -> Result<(), DatabaseError> {
-    let mut baseline = database.last_code().await?;
+    let mut baseline = last_status.code().await?;
     let mut stored = baseline;
     // The status already published counts as a change from the stored one.
     latest.mark_changed();
@@ -62,7 +65,7 @@ pub async fn start(
             }
             baseline = Some(code);
             if stored != baseline {
-                match database.save_last_code(code).await {
+                match last_status.save(code).await {
                     Ok(()) => stored = baseline,
                     Err(error) => eprintln!("storing the last code: {}", with_sources(&error)),
                 }

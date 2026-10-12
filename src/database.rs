@@ -2,10 +2,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior};
-
-use crate::park_status::AlertCode;
-use crate::sigma;
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 // Append only; never edit a migration that has shipped.
 const MIGRATIONS: &[&str] = &[
@@ -40,28 +37,6 @@ impl Database {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
         })
-    }
-
-    pub async fn last_code(&self) -> Result<Option<AlertCode>, DatabaseError> {
-        self.query(|connection| {
-            let code = connection
-                .query_row("SELECT code FROM last_status", [], |row| row.get(0))
-                .optional()?;
-            Ok(code.map(sigma::alert_code))
-        })
-        .await
-    }
-
-    pub async fn save_last_code(&self, code: AlertCode) -> Result<(), DatabaseError> {
-        self.query(move |connection| {
-            connection.execute(
-                "INSERT INTO last_status (id, code) VALUES (1, ?1)
-                 ON CONFLICT (id) DO UPDATE SET code = excluded.code",
-                [sigma::raw_alert_code(code)],
-            )?;
-            Ok(())
-        })
-        .await
     }
 
     // SQLite blocks, so queries run off the async workers.
