@@ -5,7 +5,8 @@ use std::{env, io};
 use jiff::Timestamp;
 use open_parks::database::Database;
 use open_parks::notifier::Channels;
-use open_parks::{api, notifier, page, poller, sigma};
+use open_parks::telegram::BotToken;
+use open_parks::{api, notifier, page, poller, sigma, telegram};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
 
@@ -16,7 +17,7 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma = sigma_client()?;
-    let channels = notification_channels();
+    let channels = notification_channels()?;
     let database = notification_database(&channels)?;
     let listener = tokio::net::TcpListener::bind(&address)
         .await
@@ -53,8 +54,19 @@ fn sigma_client() -> io::Result<sigma::Client> {
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
 }
 
-fn notification_channels() -> Channels {
-    Channels::new()
+fn notification_channels() -> io::Result<Channels> {
+    // No Telegram channel sends through it yet.
+    let _telegram = telegram_client()?;
+    Ok(Channels::new())
+}
+
+fn telegram_client() -> io::Result<Option<telegram::Client>> {
+    let Some(token) = env_var("OPEN_PARKS_TELEGRAM_BOT_TOKEN")?.map(BotToken::new) else {
+        return Ok(None);
+    };
+    telegram::Client::live(token)
+        .map(Some)
+        .map_err(|error| io::Error::other(format!("building the Telegram client: {error}")))
 }
 
 fn notification_database(channels: &Channels) -> io::Result<Option<Database>> {
