@@ -1,27 +1,75 @@
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 use crate::database::{Database, DatabaseError};
 use crate::park_status::{AlertCode, ParkStatus, Verdict};
 use crate::poller::{Latest, with_sources};
 
+pub trait Channel: Send + 'static {
+    /// The channel's next notification waits until this returns.
+    fn send(&mut self, notification: Notification) -> impl Future<Output = ()> + Send;
+}
+
+#[derive(Default)]
+pub struct Channels {
+    queues: Vec<mpsc::UnboundedSender<Notification>>,
+}
+
+impl Channels {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with(mut self, mut channel: impl Channel) -> Self {
+        let (queue, mut queued) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Some(notification) = queued.recv().await {
+                channel.send(notification).await;
+            }
+        });
+        self.queues.push(queue);
+        self
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.queues.is_empty()
+    }
+
+    fn send(&self, notification: &Notification) {
+        for queue in &self.queues {
+            let _ = queue.send(notification.clone());
+        }
+    }
+}
+
 pub async fn start(
     database: Database,
     mut latest: watch::Receiver<Latest>,
+    channels: Channels,
 ) -> Result<(), DatabaseError> {
-    let mut last = database.last_code().await?;
+    let mut baseline = database.last_code().await?;
+    let mut stored = baseline;
     // The status already published counts as a change from the stored one.
     latest.mark_changed();
     tokio::spawn(async move {
         while latest.changed().await.is_ok() {
-            let Some(current) = documented_code(&latest.borrow_and_update()) else {
-                continue;
+            let (code, notification) = {
+                let latest = latest.borrow_and_update();
+                let Some(status) = documented_status(&latest) else {
+                    continue;
+                };
+                (status.code, notification(baseline, status))
             };
-            if last == Some(current) {
-                continue;
+            // Sent before it's stored, so a crash in between sends it again
+            // after the restart rather than never.
+            if let Some(notification) = notification {
+                channels.send(&notification);
             }
-            match database.save_last_code(current).await {
-                Ok(()) => last = Some(current),
-                Err(error) => eprintln!("storing the last code: {}", with_sources(&error)),
+            baseline = Some(code);
+            if stored != baseline {
+                match database.save_last_code(code).await {
+                    Ok(()) => stored = baseline,
+                    Err(error) => eprintln!("storing the last code: {}", with_sources(&error)),
+                }
             }
         }
     });
@@ -49,9 +97,9 @@ pub fn notification(baseline: Option<AlertCode>, status: &ParkStatus) -> Option<
     })
 }
 
-fn documented_code(latest: &Latest) -> Option<AlertCode> {
-    let code = latest.as_ref().ok()?.status.code;
-    documented(code).then_some(code)
+fn documented_status(latest: &Latest) -> Option<&ParkStatus> {
+    let status = &latest.as_ref().ok()?.status;
+    documented(status.code).then_some(status)
 }
 
 fn documented(code: AlertCode) -> bool {

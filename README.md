@@ -49,8 +49,18 @@ SQLite database at `OPEN_PARKS_DATABASE`: the code of the last status
 seen, written whenever it changes and read back at startup; the verdict is
 derived from it. An unknown code isn't stored, so the last code stays the last
 one SIGMA documents. Opening the
-database migrates its schema, and startup fails if either fails. No channel
-exists yet, so nothing opens the database and the service keeps no state.
+database migrates its schema, and startup fails if either fails.
+
+## Notifications
+
+A notifier compares each status fetched with the last one and, when the
+verdict changes to or from a forecast closure or a closure, sends a
+notification to every configured channel. After a restart, the first fetch is
+compared with the stored status, so a closure while the service was down still
+notifies; on a fresh database, the first fetch is the baseline. Each channel
+has its own queue, so a slow one holds back neither the others nor the poller,
+and its messages arrive in order. No channel exists yet, so the service opens
+no database, runs no notifier and keeps no state.
 
 ## Page
 
