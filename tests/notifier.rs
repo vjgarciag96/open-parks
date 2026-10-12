@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use open_parks::database::Database;
-use open_parks::notifier::{self, Notification, notification};
+use open_parks::notifier::{self, Channels, Notification, notification};
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma::{self, FetchError};
@@ -69,7 +69,7 @@ async fn wait_until_stored(path: &Path, expected: AlertCode) {
 }
 
 async fn start(path: &Path, latest: watch::Receiver<Latest>) {
-    notifier::start(Database::open(path).unwrap(), latest)
+    notifier::start(Database::open(path).unwrap(), latest, Channels::new())
         .await
         .unwrap();
 }
@@ -137,7 +137,11 @@ async fn startup_fails_when_the_stored_code_cannot_be_read() {
         .unwrap();
     let (_latest, receiver) = watch::channel(fetched("code_7_closed.json"));
 
-    assert!(notifier::start(database, receiver).await.is_err());
+    assert!(
+        notifier::start(database, receiver, Channels::new())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
