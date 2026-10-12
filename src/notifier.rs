@@ -1,7 +1,7 @@
 use tokio::sync::watch;
 
 use crate::database::{Database, DatabaseError};
-use crate::park_status::AlertCode;
+use crate::park_status::{AlertCode, ParkStatus, Verdict};
 use crate::poller::{Latest, with_sources};
 
 pub async fn start(
@@ -28,7 +28,36 @@ pub async fn start(
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Notification {
+    pub old: Verdict,
+    pub new: Verdict,
+    pub status: ParkStatus,
+}
+
+pub fn notification(baseline: Option<AlertCode>, status: &ParkStatus) -> Option<Notification> {
+    // An undocumented code says nothing about the park.
+    let old = baseline.filter(|&code| documented(code))?.verdict();
+    if !documented(status.code) {
+        return None;
+    }
+    let new = status.code.verdict();
+    (old != new && (closure_or_forecast(old) || closure_or_forecast(new))).then(|| Notification {
+        old,
+        new,
+        status: status.clone(),
+    })
+}
+
 fn documented_code(latest: &Latest) -> Option<AlertCode> {
     let code = latest.as_ref().ok()?.status.code;
-    (!matches!(code, AlertCode::Unknown(_))).then_some(code)
+    documented(code).then_some(code)
+}
+
+fn documented(code: AlertCode) -> bool {
+    !matches!(code, AlertCode::Unknown(_))
+}
+
+fn closure_or_forecast(verdict: Verdict) -> bool {
+    matches!(verdict, Verdict::ClosureForecast | Verdict::Closed)
 }
