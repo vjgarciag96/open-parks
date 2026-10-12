@@ -7,4 +7,5 @@ pub mod page;
 pub mod park_status;
 pub mod poller;
 pub mod sigma;
+pub mod strings;
 pub mod telegram;

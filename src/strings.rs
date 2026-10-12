@@ -1,28 +1,29 @@
-use super::Age;
-use crate::park_status::{ReopeningForecast, Verdict};
+use jiff::SignedDuration;
 
-#[derive(Clone, Copy)]
-pub(super) enum Lang {
+use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Lang {
     Es,
     En,
 }
 
 impl Lang {
-    pub(super) fn from_tag(tag: &str) -> Option<Lang> {
+    pub(crate) fn from_tag(tag: &str) -> Option<Lang> {
         let primary = tag.trim().split('-').next()?;
         [Lang::Es, Lang::En]
             .into_iter()
             .find(|lang| primary.eq_ignore_ascii_case(lang.strings().code))
     }
 
-    pub(super) fn other(self) -> Lang {
+    pub(crate) fn other(self) -> Lang {
         match self {
             Lang::Es => Lang::En,
             Lang::En => Lang::Es,
         }
     }
 
-    pub(super) fn strings(self) -> &'static Strings {
+    pub(crate) fn strings(self) -> &'static Strings {
         match self {
             Lang::Es => &ES,
             Lang::En => &EN,
@@ -30,25 +31,64 @@ impl Lang {
     }
 }
 
-pub(super) struct Strings {
-    pub(super) code: &'static str,
-    pub(super) path: &'static str,
-    pub(super) name: &'static str,
-    pub(super) question: &'static str,
-    pub(super) headline: fn(Verdict) -> &'static str,
-    pub(super) upstream_failure: &'static str,
-    pub(super) dates: &'static str,
-    pub(super) hours: &'static str,
-    pub(super) reopening: &'static str,
-    pub(super) forecast: fn(ReopeningForecast) -> &'static str,
-    pub(super) notes: &'static str,
-    pub(super) updated: &'static str,
-    pub(super) ago: fn(Age) -> String,
-    pub(super) stale: &'static str,
-    pub(super) source_lead: &'static str,
-    pub(super) source_link: &'static str,
-    pub(super) licence_url: &'static str,
-    pub(super) disclaimer: &'static str,
+pub(crate) struct Strings {
+    pub(crate) code: &'static str,
+    pub(crate) path: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) question: &'static str,
+    pub(crate) headline: fn(Verdict) -> &'static str,
+    pub(crate) upstream_failure: &'static str,
+    pub(crate) dates: &'static str,
+    pub(crate) hours: &'static str,
+    pub(crate) reopening: &'static str,
+    pub(crate) forecast: fn(ReopeningForecast) -> &'static str,
+    pub(crate) notes: &'static str,
+    pub(crate) updated: &'static str,
+    pub(crate) ago: fn(Age) -> String,
+    pub(crate) stale: &'static str,
+    pub(crate) source_lead: &'static str,
+    pub(crate) source_link: &'static str,
+    pub(crate) licence_url: &'static str,
+    pub(crate) disclaimer: &'static str,
+}
+
+impl Strings {
+    pub(crate) fn details<'a>(
+        &self,
+        status: &'a ParkStatus,
+    ) -> impl Iterator<Item = (&'static str, &'a str)> {
+        [
+            (self.dates, status.dates.as_deref()),
+            (self.hours, status.hours.as_deref()),
+            (self.reopening, status.reopening.map(self.forecast)),
+            (self.notes, status.notes.as_deref()),
+        ]
+        .into_iter()
+        .filter_map(|(term, description)| Some((term, description?)))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Age {
+    UnderAMinute,
+    Minutes(i64),
+    Hours(i64),
+    Days(i64),
+}
+
+impl Age {
+    pub(crate) fn of(elapsed: SignedDuration) -> Age {
+        let minutes = elapsed.as_mins();
+        if minutes < 1 {
+            Age::UnderAMinute
+        } else if minutes < 60 {
+            Age::Minutes(minutes)
+        } else if minutes < 60 * 24 {
+            Age::Hours(minutes / 60)
+        } else {
+            Age::Days(minutes / (60 * 24))
+        }
+    }
 }
 
 const ES: Strings = Strings {

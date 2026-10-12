@@ -46,10 +46,11 @@ elsewhere. The status comes from Madrid's SIGMA alerts layer; set
 
 When a notification channel is configured, the service keeps its state in a
 SQLite database at `OPEN_PARKS_DATABASE`: the code of the last status
-seen, written whenever it changes and read back at startup; the verdict is
-derived from it. An unknown code isn't stored, so the last code stays the last
-one SIGMA documents. Opening the
-database migrates its schema, and startup fails if either fails.
+seen, written whenever it changes and read back at startup (the verdict is
+derived from it), and each Telegram subscriber's chat ID and language. An
+unknown code isn't stored, so the last code stays the last one SIGMA
+documents. Opening the database migrates its schema, and startup fails if
+either fails.
 
 ## Notifications
 
@@ -59,8 +60,27 @@ notification to every configured channel. After a restart, the first fetch is
 compared with the stored status, so a closure while the service was down still
 notifies; on a fresh database, the first fetch is the baseline. Each channel
 has its own queue, so a slow one holds back neither the others nor the poller,
-and its messages arrive in order. No channel exists yet, so the service opens
-no database, runs no notifier and keeps no state.
+and its messages arrive in order. No channel broadcasts yet, so without a
+Telegram bot the service opens no database, runs no notifier and keeps no
+state.
+
+## Telegram
+
+Set `OPEN_PARKS_TELEGRAM_BOT_TOKEN` to run the Telegram bot; it also needs
+`OPEN_PARKS_TELEGRAM_BOT_USERNAME` (the bot's username, without the `@`) and
+`OPEN_PARKS_DATABASE`. The bot long-polls for updates, so it needs no public
+endpoint, and answers three commands in private chats, groups and channels
+(including `/command@<bot>` in groups):
+
+- `/start` subscribes the chat and replies with the current status and what
+  is stored: the chat ID and the language, Spanish when the sender's Telegram
+  is in Spanish and English otherwise (channels have no sender, so English).
+  Sending it again updates the language.
+- `/stop` unsubscribes the chat and deletes both. Anyone in the chat can use it.
+- `/status` replies with the current status, or says it isn't known yet.
+
+Removing the bot from a chat unsubscribes it too. Subscribers aren't sent
+notifications yet.
 
 ## Page
 

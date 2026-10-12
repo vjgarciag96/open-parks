@@ -187,6 +187,21 @@ fn start_message(chat_id: i64) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn updates_are_asked_for_by_kind_rather_than_relying_on_an_earlier_setting() {
+    let fake = FakeTelegram::start().await;
+
+    client(fake.url.clone(), GENEROUS_TIMEOUT)
+        .get_updates(None, Duration::ZERO)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        fake.allowed_updates(),
+        Some(json!(["message", "channel_post", "my_chat_member"]))
+    );
+}
+
+#[tokio::test]
 async fn an_offset_confirms_the_updates_before_it() {
     let fake = FakeTelegram::start().await;
     let first = fake.push_update("message", start_message(1));
