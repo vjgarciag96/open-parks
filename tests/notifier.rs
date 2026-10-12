@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use open_parks::database::Database;
-use open_parks::notifier;
-use open_parks::park_status::AlertCode;
+use open_parks::notifier::{self, Notification, notification};
+use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma::{self, FetchError};
 use tempfile::TempDir;
@@ -17,9 +17,23 @@ use timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
 
+const OPEN_CODES: [AlertCode; 5] = [
+    AlertCode::Open,
+    AlertCode::Incidents,
+    AlertCode::YellowAlert,
+    AlertCode::OrangeAlert,
+    AlertCode::RedAlertRestrictions,
+];
+
+const CLOSING_CODES: [AlertCode; 2] = [AlertCode::RedAlertClosure, AlertCode::Closed];
+
+fn decoded(fixture_name: &str) -> ParkStatus {
+    sigma::decode(&fixture(fixture_name)).unwrap()
+}
+
 fn fetched(fixture_name: &str) -> Latest {
     Ok(Fetched {
-        status: sigma::decode(&fixture(fixture_name)).unwrap(),
+        status: decoded(fixture_name),
         fetched_at: "2026-10-11T09:30:00Z".parse().unwrap(),
     })
 }
@@ -138,4 +152,187 @@ async fn an_unknown_code_keeps_the_stored_code() {
     tokio::time::sleep(OFTEN * 5).await;
 
     assert_eq!(stored(&path).await, Some(AlertCode::Closed));
+}
+
+#[tokio::test]
+async fn closed_then_unknown_then_closed_sends_nothing() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("open-parks.sqlite3");
+    let (latest, receiver) = watch::channel(fetched("code_7_closed.json"));
+    start(&path, receiver).await;
+    wait_until_stored(&path, AlertCode::Closed).await;
+    latest.send(fetched("unknown_codes.json")).unwrap();
+    tokio::time::sleep(OFTEN * 5).await;
+
+    let sent = notification(stored(&path).await, &decoded("code_7_closed.json"));
+
+    assert_eq!(sent, None);
+}
+
+#[tokio::test]
+async fn closed_then_unknown_then_open_sends_one_reopening() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("open-parks.sqlite3");
+    let (latest, receiver) = watch::channel(fetched("code_7_closed.json"));
+    start(&path, receiver).await;
+    wait_until_stored(&path, AlertCode::Closed).await;
+    latest.send(fetched("unknown_codes.json")).unwrap();
+    tokio::time::sleep(OFTEN * 5).await;
+    let open = decoded("code_1_open.json");
+
+    let sent = notification(stored(&path).await, &open);
+
+    assert_eq!(
+        sent,
+        Some(Notification {
+            old: Verdict::Closed,
+            new: Verdict::Open,
+            status: open,
+        })
+    );
+}
+
+fn status(code: AlertCode) -> ParkStatus {
+    ParkStatus {
+        code,
+        dates: None,
+        hours: None,
+        reopening: None,
+        notes: None,
+    }
+}
+
+fn notifies(baseline: AlertCode, code: AlertCode) -> bool {
+    notification(Some(baseline), &status(code)).is_some()
+}
+
+#[test]
+fn no_baseline_does_not_notify() {
+    for code in OPEN_CODES.into_iter().chain(CLOSING_CODES) {
+        assert_eq!(notification(None, &status(code)), None, "{code:?}");
+    }
+}
+
+#[test]
+fn a_forecast_closure_notifies_from_any_open_verdict() {
+    for baseline in OPEN_CODES {
+        assert!(
+            notifies(baseline, AlertCode::RedAlertClosure),
+            "{baseline:?}"
+        );
+    }
+}
+
+#[test]
+fn a_closure_notifies_from_any_open_verdict() {
+    for baseline in OPEN_CODES {
+        assert!(notifies(baseline, AlertCode::Closed), "{baseline:?}");
+    }
+}
+
+#[test]
+fn a_forecast_closure_escalating_to_closed_notifies() {
+    let sent = notification(Some(AlertCode::RedAlertClosure), &status(AlertCode::Closed));
+
+    assert_eq!(
+        sent,
+        Some(Notification {
+            old: Verdict::ClosureForecast,
+            new: Verdict::Closed,
+            status: status(AlertCode::Closed),
+        })
+    );
+}
+
+#[test]
+fn a_closed_park_downgrading_to_a_forecast_closure_notifies() {
+    let sent = notification(Some(AlertCode::Closed), &status(AlertCode::RedAlertClosure));
+
+    assert_eq!(
+        sent,
+        Some(Notification {
+            old: Verdict::Closed,
+            new: Verdict::ClosureForecast,
+            status: status(AlertCode::RedAlertClosure),
+        })
+    );
+}
+
+#[test]
+fn a_reopening_to_any_open_verdict_notifies() {
+    for baseline in CLOSING_CODES {
+        for code in OPEN_CODES {
+            let sent = notification(Some(baseline), &status(code));
+
+            assert_eq!(
+                sent,
+                Some(Notification {
+                    old: baseline.verdict(),
+                    new: code.verdict(),
+                    status: status(code),
+                }),
+                "{baseline:?} → {code:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn changes_between_open_verdicts_do_not_notify() {
+    for baseline in OPEN_CODES {
+        for code in OPEN_CODES {
+            assert!(!notifies(baseline, code), "{baseline:?} → {code:?}");
+        }
+    }
+}
+
+#[test]
+fn a_change_in_the_details_alone_does_not_notify() {
+    for code in CLOSING_CODES {
+        let changed = ParkStatus {
+            dates: Some("Del 12 al 14 de octubre".into()),
+            hours: Some("Todo el día".into()),
+            reopening: Some(ReopeningForecast::AfterInspections),
+            notes: Some("Rachas de viento".into()),
+            ..status(code)
+        };
+
+        assert_eq!(notification(Some(code), &changed), None, "{code:?}");
+    }
+}
+
+#[test]
+fn an_unknown_code_does_not_notify() {
+    for baseline in OPEN_CODES.into_iter().chain(CLOSING_CODES) {
+        assert!(!notifies(baseline, AlertCode::Unknown(8)), "{baseline:?}");
+    }
+}
+
+#[test]
+fn an_unknown_stored_code_does_not_notify() {
+    for code in OPEN_CODES.into_iter().chain(CLOSING_CODES) {
+        assert!(!notifies(AlertCode::Unknown(8), code), "{code:?}");
+    }
+}
+
+#[test]
+fn the_notification_carries_both_verdicts_and_the_new_status() {
+    let closed = ParkStatus {
+        dates: Some("12/10/2026".into()),
+        hours: Some("Todo el día".into()),
+        reopening: Some(ReopeningForecast::SeeNotes),
+        notes: Some("Caída de ramas".into()),
+        ..status(AlertCode::Closed)
+    };
+
+    let sent = notification(Some(AlertCode::OrangeAlert), &closed);
+
+    assert_eq!(
+        sent,
+        Some(Notification {
+            old: Verdict::OpenStayNotAdvised,
+            new: Verdict::Closed,
+            status: closed,
+        })
+    );
 }
