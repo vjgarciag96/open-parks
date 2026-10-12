@@ -4,6 +4,7 @@ use super::ChatId;
 use crate::database::{Database, DatabaseError};
 use crate::strings::Lang;
 
+#[derive(Clone)]
 pub struct Subscribers {
     database: Database,
 }
@@ -39,6 +40,26 @@ impl Subscribers {
                     "DELETE FROM telegram_subscribers WHERE chat_id = ?1",
                     [chat.0],
                 )?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Moves a subscription to the chat's new ID, unless one is already
+    /// there, which is kept as it is.
+    pub async fn migrate(&self, from: ChatId, to: ChatId) -> Result<(), DatabaseError> {
+        self.database
+            .query(move |connection| {
+                let transaction = connection.unchecked_transaction()?;
+                transaction.execute(
+                    "UPDATE OR IGNORE telegram_subscribers SET chat_id = ?2 WHERE chat_id = ?1",
+                    [from.0, to.0],
+                )?;
+                transaction.execute(
+                    "DELETE FROM telegram_subscribers WHERE chat_id = ?1",
+                    [from.0],
+                )?;
+                transaction.commit()?;
                 Ok(())
             })
             .await

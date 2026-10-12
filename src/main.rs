@@ -5,7 +5,7 @@ use std::{env, io};
 use jiff::Timestamp;
 use open_parks::database::Database;
 use open_parks::notifier::Channels;
-use open_parks::telegram::{BotToken, Subscribers};
+use open_parks::telegram::{BotToken, Broadcast, Pace, Subscribers};
 use open_parks::{api, notifier, page, poller, sigma, telegram};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
@@ -18,8 +18,7 @@ async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma = sigma_client()?;
     let telegram = telegram_bot()?;
-    let channels = Channels::new();
-    let database = notification_database(telegram.is_some() || !channels.is_empty())?;
+    let database = notification_database(telegram.is_some())?;
     let listener = tokio::net::TcpListener::bind(&address)
         .await
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
@@ -27,12 +26,16 @@ async fn main() -> io::Result<()> {
     let mut terminate = signal(SignalKind::terminate())?;
     let latest = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
     if let Some(database) = database {
-        notifier::start(database.clone(), latest.clone(), channels)
+        let mut channels = Channels::new();
+        if let Some((client, username)) = telegram {
+            let subscribers = Subscribers::new(database.clone());
+            let broadcast = Broadcast::new(client.clone(), subscribers.clone(), Pace::LIVE);
+            channels = channels.with(broadcast);
+            telegram::start(client, username, subscribers, latest.clone());
+        }
+        notifier::start(database, latest.clone(), channels)
             .await
             .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
-        if let Some((client, username)) = telegram {
-            telegram::start(client, username, Subscribers::new(database), latest.clone());
-        }
     }
     let app = api::router(latest.clone()).merge(page::router(latest, Timestamp::now));
     axum::serve(listener, app)

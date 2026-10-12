@@ -1,11 +1,10 @@
-use std::fmt::Write;
 use std::time::Duration;
 
 use tokio::sync::watch;
 
 use super::{
     ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers, UpdateKind,
-    User,
+    User, write_details,
 };
 use crate::database::DatabaseError;
 use crate::poller::{Latest, with_sources};
@@ -172,10 +171,7 @@ impl Bot {
             strings.question,
             (strings.headline)(status.code.verdict())
         );
-        for (index, (term, description)) in strings.details(status).enumerate() {
-            let separator = if index == 0 { "\n\n" } else { "\n" };
-            write!(text, "{separator}{term}: {description}").unwrap();
-        }
+        write_details(&mut text, strings, status);
         text
     }
 }

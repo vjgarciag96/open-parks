@@ -30,10 +30,6 @@ impl Channels {
         self
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.queues.is_empty()
-    }
-
     fn send(&self, notification: &Notification) {
         for queue in &self.queues {
             let _ = queue.send(notification.clone());
@@ -81,6 +77,27 @@ pub struct Notification {
     pub old: Verdict,
     pub new: Verdict,
     pub status: ParkStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Change {
+    ClosureForecast,
+    Closure,
+    Escalation,
+    StillForecast,
+    Reopening,
+}
+
+impl Notification {
+    pub fn change(&self) -> Change {
+        match (self.old, self.new) {
+            (_, new) if !closure_or_forecast(new) => Change::Reopening,
+            (Verdict::ClosureForecast, Verdict::Closed) => Change::Escalation,
+            (_, Verdict::Closed) => Change::Closure,
+            (Verdict::Closed, _) => Change::StillForecast,
+            _ => Change::ClosureForecast,
+        }
+    }
 }
 
 pub fn notification(baseline: Option<AlertCode>, status: &ParkStatus) -> Option<Notification> {
