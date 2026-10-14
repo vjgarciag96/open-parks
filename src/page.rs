@@ -189,12 +189,12 @@ fn render(
                 style { (PreEscaped(STYLE)) }
             }
             body {
-                main {
-                    nav {
-                        a href=(other.path) hreflang=(other.code) lang=(other.code) {
-                            (other.name)
-                        }
+                nav {
+                    a href=(other.path) hreflang=(other.code) lang=(other.code) {
+                        (other.name)
                     }
+                }
+                main {
                     p { (strings.question) }
                     h1 { (answer) }
                     (details)
