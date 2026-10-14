@@ -189,19 +189,21 @@ fn render(
                 style { (PreEscaped(STYLE)) }
             }
             body {
-                nav {
-                    a href=(other.path) hreflang=(other.code) lang=(other.code) {
-                        (other.name)
+                main {
+                    nav {
+                        a href=(other.path) hreflang=(other.code) lang=(other.code) {
+                            (other.name)
+                        }
                     }
-                }
-                p { (strings.question) }
-                h1 { (answer) }
-                (details)
-                @if let Some(bot) = telegram_bot_username {
-                    p.telegram {
-                        a href={ "https://t.me/" (bot) } {
-                            (PreEscaped(TELEGRAM_LOGO))
-                            (strings.telegram)
+                    p { (strings.question) }
+                    h1 { (answer) }
+                    (details)
+                    @if let Some(bot) = telegram_bot_username {
+                        p.telegram {
+                            a href={ "https://t.me/" (bot) } {
+                                (PreEscaped(TELEGRAM_LOGO))
+                                (strings.telegram)
+                            }
                         }
                     }
                 }
