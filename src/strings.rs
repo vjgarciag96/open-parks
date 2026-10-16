@@ -33,6 +33,7 @@ impl Lang {
 
 pub(crate) struct Strings {
     pub(crate) code: &'static str,
+    pub(crate) locale: &'static str,
     pub(crate) path: &'static str,
     pub(crate) name: &'static str,
     pub(crate) title: &'static str,
@@ -96,6 +97,7 @@ impl Age {
 
 const ES: Strings = Strings {
     code: "es",
+    locale: "es_ES",
     path: "/es",
     name: "Español",
     title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
@@ -139,6 +141,7 @@ const ES: Strings = Strings {
 
 const EN: Strings = Strings {
     code: "en",
+    locale: "en_GB",
     path: "/en",
     name: "English",
     title: "Is Retiro Park open today? Live status, Madrid",
