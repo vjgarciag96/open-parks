@@ -513,6 +513,27 @@ async fn each_page_has_a_title_and_description_in_its_language() {
 }
 
 #[tokio::test]
+async fn the_link_preview_shows_the_verdict() {
+    let spanish = text_body(get(fetched("code_7_closed.json"), "/es").await).await;
+    let english = text_body(get(fetched("code_7_closed.json"), "/en").await).await;
+
+    for expected in [
+        r#"<meta property="og:type" content="website">"#,
+        r#"<meta property="og:title" content="¿Está abierto el Retiro? Cerrado">"#,
+        r#"<meta property="og:description" content="Consulta si el Parque del Retiro"#,
+        r#"<meta property="og:locale" content="es_ES"><meta property="og:locale:alternate" content="en_GB">"#,
+    ] {
+        assert!(spanish.contains(expected), "{expected}: {spanish}");
+    }
+    for expected in [
+        r#"<meta property="og:title" content="Is Retiro Park open? Closed">"#,
+        r#"<meta property="og:locale" content="en_GB"><meta property="og:locale:alternate" content="es_ES">"#,
+    ] {
+        assert!(english.contains(expected), "{expected}: {english}");
+    }
+}
+
+#[tokio::test]
 async fn the_page_links_its_favicon() {
     let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
 

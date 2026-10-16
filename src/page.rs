@@ -200,6 +200,11 @@ fn render(
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { (strings.title) }
                 meta name="description" content=(strings.description);
+                meta property="og:type" content="website";
+                meta property="og:title" content={ (strings.question) " " (answer) };
+                meta property="og:description" content=(strings.description);
+                meta property="og:locale" content=(strings.locale);
+                meta property="og:locale:alternate" content=(other.locale);
                 link rel="icon" href="/favicon.svg" type="image/svg+xml";
                 style { (PreEscaped(STYLE)) }
             }
