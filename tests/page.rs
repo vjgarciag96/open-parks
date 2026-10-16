@@ -6,6 +6,7 @@ use jiff::Timestamp;
 use open_parks::page;
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma;
+use reqwest::Url;
 use tokio::sync::watch;
 use tower::ServiceExt;
 
@@ -13,6 +14,7 @@ mod common;
 use common::fixture;
 
 const FETCHED_AT: &str = "2026-10-11T09:30:00Z";
+const PUBLIC_URL: &str = "https://retiro.example";
 
 async fn send(
     latest: Latest,
@@ -20,14 +22,41 @@ async fn send(
     telegram_bot_username: Option<&str>,
     request: Request<Body>,
 ) -> Response {
+    send_to(latest, now, telegram_bot_username, None, request).await
+}
+
+async fn send_to(
+    latest: Latest,
+    now: Timestamp,
+    telegram_bot_username: Option<&str>,
+    public_url: Option<&str>,
+    request: Request<Body>,
+) -> Response {
     page::router(
         watch::channel(latest).1,
         move || now,
         telegram_bot_username.map(str::to_owned),
+        public_url.map(public),
     )
     .oneshot(request)
     .await
     .unwrap()
+}
+
+fn public(url: &str) -> page::PublicUrl {
+    page::PublicUrl::new(Url::parse(url).unwrap()).unwrap()
+}
+
+async fn get_with_public_url(latest: Latest, uri: &str) -> Response {
+    let request = Request::get(uri).body(Body::empty()).unwrap();
+    send_to(
+        latest,
+        FETCHED_AT.parse().unwrap(),
+        None,
+        Some(PUBLIC_URL),
+        request,
+    )
+    .await
 }
 
 async fn get(latest: Latest, uri: &str) -> Response {
@@ -513,6 +542,40 @@ async fn each_page_has_a_title_and_description_in_its_language() {
 }
 
 #[tokio::test]
+async fn each_page_links_its_canonical_url_and_alternates_with_a_public_url() {
+    for (uri, canonical) in [
+        ("/es", "https://retiro.example/es"),
+        ("/en", "https://retiro.example/en"),
+    ] {
+        for latest in [
+            || fetched("code_1_open.json"),
+            || Err(sigma::FetchError::Timeout),
+        ] {
+            let body = text_body(get_with_public_url(latest(), uri).await).await;
+
+            for expected in [
+                format!(r#"<link rel="canonical" href="{canonical}">"#),
+                r#"<link rel="alternate" hreflang="es" href="https://retiro.example/es"><link rel="alternate" hreflang="en" href="https://retiro.example/en"><link rel="alternate" hreflang="x-default" href="https://retiro.example/">"#.to_owned(),
+                format!(r#"<meta property="og:url" content="{canonical}">"#),
+            ] {
+                assert!(body.contains(&expected), "{uri}: {expected}: {body}");
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_page_has_no_absolute_links_to_itself_without_a_public_url() {
+    for uri in ["/es", "/en"] {
+        let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
+
+        assert!(!body.contains("canonical"), "{uri}: {body}");
+        assert!(!body.contains(r#"rel="alternate""#), "{uri}: {body}");
+        assert!(!body.contains("og:url"), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
 async fn the_link_preview_shows_the_verdict() {
     let spanish = text_body(get(fetched("code_7_closed.json"), "/es").await).await;
     let english = text_body(get(fetched("code_7_closed.json"), "/en").await).await;
@@ -558,4 +621,31 @@ async fn the_favicon_is_served_as_svg() {
         body.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""),
         "{body}"
     );
+}
+
+#[test]
+fn a_public_url_is_an_http_or_https_origin() {
+    for url in [
+        "https://retiro.example",
+        "https://retiro.example/",
+        "http://localhost:3000",
+    ] {
+        assert!(
+            page::PublicUrl::new(Url::parse(url).unwrap()).is_some(),
+            "{url}"
+        );
+    }
+    for url in [
+        "https://retiro.example/parks",
+        "https://retiro.example/?lang=es",
+        "https://retiro.example/#top",
+        "https://user@retiro.example",
+        "ftp://retiro.example",
+        "mailto:retiro@example.org",
+    ] {
+        assert!(
+            page::PublicUrl::new(Url::parse(url).unwrap()).is_none(),
+            "{url}"
+        );
+    }
 }

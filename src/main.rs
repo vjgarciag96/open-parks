@@ -17,6 +17,7 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma = sigma_client()?;
+    let public_url = public_url()?;
     let telegram_bot_username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?;
     let telegram = telegram_bot(telegram_bot_username.clone())?;
     let database = notification_database(telegram.is_some())?;
@@ -42,6 +43,7 @@ async fn main() -> io::Result<()> {
         latest,
         Timestamp::now,
         telegram_bot_username,
+        public_url,
     ));
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -64,6 +66,19 @@ fn sigma_client() -> io::Result<sigma::Client> {
         None => sigma::Client::live(),
     };
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
+}
+
+fn public_url() -> io::Result<Option<page::PublicUrl>> {
+    let Some(url) = env_var("OPEN_PARKS_PUBLIC_URL")? else {
+        return Ok(None);
+    };
+    let url = Url::parse(&url)
+        .map_err(|error| io::Error::other(format!("OPEN_PARKS_PUBLIC_URL: {error}")))?;
+    page::PublicUrl::new(url).map(Some).ok_or_else(|| {
+        io::Error::other(
+            "OPEN_PARKS_PUBLIC_URL must be an HTTP(S) origin, such as https://example.org",
+        )
+    })
 }
 
 fn telegram_bot(username: Option<String>) -> io::Result<Option<(telegram::Client, String)>> {

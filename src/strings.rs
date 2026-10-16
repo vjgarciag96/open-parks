@@ -9,9 +9,11 @@ pub enum Lang {
 }
 
 impl Lang {
+    pub(crate) const ALL: [Lang; 2] = [Lang::Es, Lang::En];
+
     pub(crate) fn from_tag(tag: &str) -> Option<Lang> {
         let primary = tag.trim().split('-').next()?;
-        [Lang::Es, Lang::En]
+        Lang::ALL
             .into_iter()
             .find(|lang| primary.eq_ignore_ascii_case(lang.strings().code))
     }

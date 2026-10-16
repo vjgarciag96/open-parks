@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
+use reqwest::Url;
 use tokio::sync::watch;
 
 use crate::api::{to_the_second, upstream_failure_status};
@@ -23,17 +24,53 @@ const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 
+#[derive(Debug, Clone)]
+pub struct PublicUrl(Url);
+
+impl PublicUrl {
+    pub fn new(url: Url) -> Option<PublicUrl> {
+        let origin = matches!(url.scheme(), "http" | "https")
+            && url.has_host()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.path() == "/"
+            && url.query().is_none()
+            && url.fragment().is_none();
+        origin.then_some(PublicUrl(url))
+    }
+
+    fn of(&self, path: &str) -> String {
+        self.0
+            .join(path)
+            .expect("an HTTP(S) origin joins any absolute path")
+            .into()
+    }
+
+    fn alternates(&self) -> impl Iterator<Item = (&'static str, String)> {
+        Lang::ALL
+            .into_iter()
+            .map(|lang| (lang.strings().code, self.of(lang.strings().path)))
+            .chain([("x-default", self.of("/"))])
+    }
+}
+
+struct Site {
+    telegram_bot_username: Option<String>,
+    public_url: Option<PublicUrl>,
+}
+
 #[derive(Clone)]
 struct Status {
     latest: watch::Receiver<Latest>,
     clock: Arc<dyn Clock>,
-    telegram_bot_username: Option<Arc<str>>,
+    site: Arc<Site>,
 }
 
 pub fn router(
     latest: watch::Receiver<Latest>,
     clock: impl Clock,
     telegram_bot_username: Option<String>,
+    public_url: Option<PublicUrl>,
 ) -> Router {
     Router::new()
         .route(
@@ -46,7 +83,10 @@ pub fn router(
         .with_state(Status {
             latest,
             clock: Arc::new(clock),
-            telegram_bot_username: telegram_bot_username.map(Arc::from),
+            site: Arc::new(Site {
+                telegram_bot_username,
+                public_url,
+            }),
         })
 }
 
@@ -124,20 +164,19 @@ fn retiro_status(
     State(Status {
         latest,
         clock,
-        telegram_bot_username,
+        site,
     }): State<Status>,
     lang: Lang,
 ) -> Response {
     let strings = lang.strings();
     let other = lang.other().strings();
-    let telegram_bot_username = telegram_bot_username.as_deref();
     match &*latest.borrow() {
         Ok(fetched) => {
             let answer = (strings.headline)(fetched.status.code.verdict());
             render(
                 strings,
                 other,
-                telegram_bot_username,
+                &site,
                 answer,
                 details(strings, fetched, clock.now()),
             )
@@ -145,13 +184,7 @@ fn retiro_status(
         }
         Err(error) => {
             let (status, _) = upstream_failure_status(error);
-            let page = render(
-                strings,
-                other,
-                telegram_bot_username,
-                strings.upstream_failure,
-                html! {},
-            );
+            let page = render(strings, other, &site, strings.upstream_failure, html! {});
             (status, page).into_response()
         }
     }
@@ -188,7 +221,7 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
 fn render(
     strings: &Strings,
     other: &Strings,
-    telegram_bot_username: Option<&str>,
+    site: &Site,
     answer: &str,
     details: Markup,
 ) -> Markup {
@@ -200,6 +233,13 @@ fn render(
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { (strings.title) }
                 meta name="description" content=(strings.description);
+                @if let Some(public_url) = &site.public_url {
+                    link rel="canonical" href=(public_url.of(strings.path));
+                    @for (hreflang, href) in public_url.alternates() {
+                        link rel="alternate" hreflang=(hreflang) href=(href);
+                    }
+                    meta property="og:url" content=(public_url.of(strings.path));
+                }
                 meta property="og:type" content="website";
                 meta property="og:title" content={ (strings.question) " " (answer) };
                 meta property="og:description" content=(strings.description);
@@ -221,7 +261,7 @@ fn render(
                         (answer)
                     }
                     (details)
-                    @if let Some(bot) = telegram_bot_username {
+                    @if let Some(bot) = &site.telegram_bot_username {
                         p.telegram {
                             a href={ "https://t.me/" (bot) } {
                                 (PreEscaped(TELEGRAM_LOGO))

@@ -21,9 +21,7 @@ impl Drop for Server {
 }
 
 fn start_server(sigma_query_url: &Url) -> (Server, String) {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_open-parks"))
-        .env("OPEN_PARKS_ADDRESS", "127.0.0.1:0")
-        .env("OPEN_PARKS_SIGMA_QUERY_URL", sigma_query_url.as_str())
+    let mut child = server_command(sigma_query_url)
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -38,6 +36,14 @@ fn start_server(sigma_query_url: &Url) -> (Server, String) {
         .unwrap_or_else(|| panic!("unexpected first line: {line:?}"))
         .to_owned();
     (server, address)
+}
+
+fn server_command(sigma_query_url: &Url) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_open-parks"));
+    command
+        .env("OPEN_PARKS_ADDRESS", "127.0.0.1:0")
+        .env("OPEN_PARKS_SIGMA_QUERY_URL", sigma_query_url.as_str());
+    command
 }
 
 fn get(address: &str, path: &str) -> String {
@@ -89,6 +95,24 @@ fn the_binary_serves_retiros_status_page() {
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
     assert!(body.contains("</span> Cerrado</h1>"), "{body}");
+}
+
+#[test]
+fn the_binary_refuses_a_public_url_that_is_not_an_origin() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+
+    let output = server_command(&sigma)
+        .env("OPEN_PARKS_PUBLIC_URL", "https://retiro.example/es")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("OPEN_PARKS_PUBLIC_URL must be an HTTP(S) origin"),
+        "{stderr}"
+    );
 }
 
 fn terminate(server: &mut Server) -> ExitStatus {
