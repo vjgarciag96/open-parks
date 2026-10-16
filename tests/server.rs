@@ -21,7 +21,12 @@ impl Drop for Server {
 }
 
 fn start_server(sigma_query_url: &Url) -> (Server, String) {
+    start_server_with(sigma_query_url, &[])
+}
+
+fn start_server_with(sigma_query_url: &Url, envs: &[(&str, &str)]) -> (Server, String) {
     let mut child = server_command(sigma_query_url)
+        .envs(envs.iter().copied())
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
@@ -95,6 +100,25 @@ fn the_binary_serves_retiros_status_page() {
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
     assert!(body.contains("</span> Cerrado</h1>"), "{body}");
+}
+
+#[test]
+fn the_binary_serves_the_sitemap_at_its_public_url() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let (_server, address) = start_server_with(
+        &sigma,
+        &[("OPEN_PARKS_PUBLIC_URL", "https://retiro.example")],
+    );
+
+    let response = get(&address, "/sitemap.xml");
+
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
+    assert!(
+        body.contains("<loc>https://retiro.example/es</loc>"),
+        "{body}"
+    );
 }
 
 #[test]

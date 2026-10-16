@@ -79,6 +79,14 @@ pub fn router(
         )
         .route("/es", get(async |latest| retiro_status(latest, Lang::Es)))
         .route("/en", get(async |latest| retiro_status(latest, Lang::En)))
+        .route(
+            "/robots.txt",
+            get(async |State(status): State<Status>| robots_txt(&status.site)),
+        )
+        .route(
+            "/sitemap.xml",
+            get(async |State(status): State<Status>| sitemap_xml(&status.site)),
+        )
         .route("/favicon.svg", get(async || favicon()))
         .with_state(Status {
             latest,
@@ -88,6 +96,37 @@ pub fn router(
                 public_url,
             }),
         })
+}
+
+fn robots_txt(site: &Site) -> String {
+    let mut robots = String::from("User-agent: *\nDisallow: /api/\n");
+    if let Some(public_url) = &site.public_url {
+        robots.push_str(&format!("Sitemap: {}\n", public_url.of("/sitemap.xml")));
+    }
+    robots
+}
+
+fn sitemap_xml(site: &Site) -> Response {
+    let Some(public_url) = &site.public_url else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let alternates: String = public_url
+        .alternates()
+        .map(|(hreflang, href)| {
+            format!(r#"<xhtml:link rel="alternate" hreflang="{hreflang}" href="{href}"/>"#)
+        })
+        .collect();
+    let urls: String = Lang::ALL
+        .into_iter()
+        .map(|lang| {
+            let loc = public_url.of(lang.strings().path);
+            format!("<url><loc>{loc}</loc>{alternates}</url>")
+        })
+        .collect();
+    let sitemap = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">{urls}</urlset>"#
+    );
+    ([(header::CONTENT_TYPE, "application/xml")], sitemap).into_response()
 }
 
 fn favicon() -> Response {
