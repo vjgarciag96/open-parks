@@ -88,7 +88,7 @@ fn the_binary_serves_retiros_status_page() {
 
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
-    assert!(body.contains("<h1>Cerrado</h1>"), "{body}");
+    assert!(body.contains("</span> Cerrado</h1>"), "{body}");
 }
 
 fn terminate(server: &mut Server) -> ExitStatus {

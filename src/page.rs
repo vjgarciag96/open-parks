@@ -185,7 +185,8 @@ fn render(
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
-                title { (strings.question) }
+                title { (strings.title) }
+                meta name="description" content=(strings.description);
                 style { (PreEscaped(STYLE)) }
             }
             body {
@@ -195,8 +196,11 @@ fn render(
                     }
                 }
                 main {
-                    p { (strings.question) }
-                    h1 { (answer) }
+                    h1 {
+                        span.question { (strings.question) }
+                        " "
+                        (answer)
+                    }
                     (details)
                     @if let Some(bot) = telegram_bot_username {
                         p.telegram {
