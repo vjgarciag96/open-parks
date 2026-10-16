@@ -623,6 +623,61 @@ async fn the_favicon_is_served_as_svg() {
     );
 }
 
+#[tokio::test]
+async fn robots_txt_keeps_crawlers_off_the_api_and_points_to_the_sitemap() {
+    let response = get_with_public_url(fetched("code_1_open.json"), "/robots.txt").await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "text/plain; charset=utf-8"
+    );
+    assert_eq!(
+        text_body(response).await,
+        "User-agent: *\nDisallow: /api/\nSitemap: https://retiro.example/sitemap.xml\n"
+    );
+}
+
+#[tokio::test]
+async fn robots_txt_has_no_sitemap_without_a_public_url() {
+    let body = text_body(get(fetched("code_1_open.json"), "/robots.txt").await).await;
+
+    assert_eq!(body, "User-agent: *\nDisallow: /api/\n");
+}
+
+#[tokio::test]
+async fn the_sitemap_lists_each_language_with_its_alternates() {
+    let response = get_with_public_url(fetched("code_1_open.json"), "/sitemap.xml").await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/xml");
+    let alternates = concat!(
+        r#"<xhtml:link rel="alternate" hreflang="es" href="https://retiro.example/es"/>"#,
+        r#"<xhtml:link rel="alternate" hreflang="en" href="https://retiro.example/en"/>"#,
+        r#"<xhtml:link rel="alternate" hreflang="x-default" href="https://retiro.example/"/>"#,
+    );
+    assert_eq!(
+        text_body(response).await,
+        format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>"#,
+                r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">"#,
+                "<url><loc>https://retiro.example/es</loc>{alternates}</url>",
+                "<url><loc>https://retiro.example/en</loc>{alternates}</url>",
+                "</urlset>",
+            ),
+            alternates = alternates
+        )
+    );
+}
+
+#[tokio::test]
+async fn there_is_no_sitemap_without_a_public_url() {
+    let response = get(fetched("code_1_open.json"), "/sitemap.xml").await;
+
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
 #[test]
 fn a_public_url_is_an_http_or_https_origin() {
     for url in [
