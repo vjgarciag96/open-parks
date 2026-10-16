@@ -70,6 +70,10 @@ fn fetched(fixture_name: &str) -> Latest {
     })
 }
 
+fn h1(question: &str, answer: &str) -> String {
+    format!(r#"<h1><span class="question">{question}</span> {answer}</h1>"#)
+}
+
 fn assert_html(response: &Response) {
     assert_eq!(
         response.headers()[header::CONTENT_TYPE],
@@ -119,7 +123,7 @@ async fn every_alert_codes_verdict_is_the_headline() {
         let body = text_body(get(fetched(name), "/es").await).await;
 
         assert!(
-            body.contains(&format!("<h1>{headline}</h1>")),
+            body.contains(&h1("¿Está abierto el Retiro?", headline)),
             "fixture {name}: {body}"
         );
     }
@@ -133,7 +137,10 @@ async fn a_failing_upstream_is_a_bad_gateway_page() {
     assert_html(&response);
     let body = text_body(response).await;
     assert!(
-        body.contains("<h1>No hemos podido consultar el estado</h1>"),
+        body.contains(&h1(
+            "¿Está abierto el Retiro?",
+            "No hemos podido consultar el estado"
+        )),
         "{body}"
     );
 }
@@ -145,7 +152,10 @@ async fn an_upstream_that_never_responds_is_a_gateway_timeout_page() {
     assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     let body = text_body(response).await;
     assert!(
-        body.contains("<h1>No hemos podido consultar el estado</h1>"),
+        body.contains(&h1(
+            "¿Está abierto el Retiro?",
+            "No hemos podido consultar el estado"
+        )),
         "{body}"
     );
 }
@@ -208,11 +218,7 @@ async fn every_alert_codes_verdict_is_the_english_headline() {
             "fixture {name}: {body}"
         );
         assert!(
-            body.contains("Is Retiro Park open?"),
-            "fixture {name}: {body}"
-        );
-        assert!(
-            body.contains(&format!("<h1>{headline}</h1>")),
+            body.contains(&h1("Is Retiro Park open?", headline)),
             "fixture {name}: {body}"
         );
     }
@@ -292,7 +298,7 @@ async fn a_failing_upstream_is_explained_in_english() {
     assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     let body = text_body(response).await;
     assert!(
-        body.contains("<h1>We couldn’t check the status</h1>"),
+        body.contains(&h1("Is Retiro Park open?", "We couldn’t check the status")),
         "{body}"
     );
 }
@@ -475,6 +481,33 @@ async fn the_page_has_no_telegram_link_without_a_bot() {
 
             assert!(!body.contains("t.me"), "{uri}: {body}");
             assert!(!body.contains("Telegram"), "{uri}: {body}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn each_page_has_a_title_and_description_in_its_language() {
+    let cases = [
+        (
+            "/es",
+            "<title>¿Está abierto el Retiro hoy? Parque del Retiro, Madrid</title>",
+            r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto"#,
+        ),
+        (
+            "/en",
+            "<title>Is Retiro Park open today? Live status, Madrid</title>",
+            r#"<meta name="description" content="Check whether Madrid’s Retiro Park is open"#,
+        ),
+    ];
+    for (uri, title, description) in cases {
+        for latest in [
+            || fetched("code_1_open.json"),
+            || Err(sigma::FetchError::Timeout),
+        ] {
+            let body = text_body(get(latest(), uri).await).await;
+
+            assert!(body.contains(title), "{uri}: {body}");
+            assert!(body.contains(description), "{uri}: {body}");
         }
     }
 }
