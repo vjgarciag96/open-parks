@@ -165,7 +165,7 @@ async fn the_page_has_no_scripts_and_inline_styles_only() {
     let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
 
     assert!(!body.contains("<script"), "{body}");
-    assert!(!body.contains("<link"), "{body}");
+    assert!(!body.contains(r#"rel="stylesheet""#), "{body}");
     assert!(body.contains("<style>"), "{body}");
 }
 
@@ -510,4 +510,31 @@ async fn each_page_has_a_title_and_description_in_its_language() {
             assert!(body.contains(description), "{uri}: {body}");
         }
     }
+}
+
+#[tokio::test]
+async fn the_page_links_its_favicon() {
+    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+
+    assert!(
+        body.contains(r#"<link rel="icon" href="/favicon.svg" type="image/svg+xml">"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_favicon_is_served_as_svg() {
+    let response = get(fetched("code_1_open.json"), "/favicon.svg").await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "image/svg+xml");
+    assert_eq!(
+        response.headers()[header::CACHE_CONTROL],
+        "public, max-age=86400"
+    );
+    let body = text_body(response).await;
+    assert!(
+        body.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""),
+        "{body}"
+    );
 }

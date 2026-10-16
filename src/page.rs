@@ -17,6 +17,7 @@ use crate::strings::{Age, Lang, Strings};
 
 const STYLE: &str = include_str!("page/page.css");
 const TELEGRAM_LOGO: &str = include_str!("page/telegram_logo.svg");
+const FAVICON: &str = include_str!("page/favicon.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
@@ -41,11 +42,23 @@ pub fn router(
         )
         .route("/es", get(async |latest| retiro_status(latest, Lang::Es)))
         .route("/en", get(async |latest| retiro_status(latest, Lang::En)))
+        .route("/favicon.svg", get(async || favicon()))
         .with_state(Status {
             latest,
             clock: Arc::new(clock),
             telegram_bot_username: telegram_bot_username.map(Arc::from),
         })
+}
+
+fn favicon() -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, "image/svg+xml"),
+            (header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        FAVICON,
+    )
+        .into_response()
 }
 
 fn redirect_to_preferred(headers: &HeaderMap) -> Response {
@@ -187,6 +200,7 @@ fn render(
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 title { (strings.title) }
                 meta name="description" content=(strings.description);
+                link rel="icon" href="/favicon.svg" type="image/svg+xml";
                 style { (PreEscaped(STYLE)) }
             }
             body {
