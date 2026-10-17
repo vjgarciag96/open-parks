@@ -153,7 +153,7 @@ async fn a_failed_refresh_keeps_the_last_good_status() {
 #[tokio::test]
 async fn requests_are_served_without_querying_sigma() {
     let upstream = Upstream::start(Some(fixture("code_1_open.json"))).await;
-    let router = api::router(start(upstream.url.clone(), NEVER).await);
+    let router = api::router(start(upstream.url.clone(), NEVER).await, Timestamp::now);
 
     for _ in 0..3 {
         let response = router

@@ -39,7 +39,7 @@ async fn main() -> io::Result<()> {
             .await
             .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
     }
-    let app = api::router(latest.clone()).merge(page::router(
+    let app = api::router(latest.clone(), Timestamp::now).merge(page::router(
         latest,
         Timestamp::now,
         telegram_bot_username,
