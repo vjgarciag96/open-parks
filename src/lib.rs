@@ -6,6 +6,7 @@ pub mod notifier;
 pub mod page;
 pub mod park_status;
 pub mod poller;
+pub mod schedule;
 pub mod sigma;
 pub mod strings;
 pub mod telegram;

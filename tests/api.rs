@@ -22,9 +22,14 @@ use fake_upstream::{serving, serving_json, url_for};
 use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 const RETIRO_STATUS: &str = "/api/v1/parks/retiro/status";
+const NOW: &str = "2026-10-11T09:30:00Z";
 
 async fn get(latest: watch::Receiver<Latest>, uri: &str) -> Response {
-    api::router(latest)
+    get_at(latest, NOW.parse().unwrap(), uri).await
+}
+
+async fn get_at(latest: watch::Receiver<Latest>, now: Timestamp, uri: &str) -> Response {
+    api::router(latest, move || now)
         .oneshot(Request::get(uri).body(Body::empty()).unwrap())
         .await
         .unwrap()
@@ -48,6 +53,14 @@ async fn get_retiro_status_from(upstream: Url, timeout: Duration) -> Response {
     get(latest, RETIRO_STATUS).await
 }
 
+fn open_until_ten_at_night() -> Value {
+    json!({
+        "open_now": true,
+        "opens_at": null,
+        "closes_at": "2026-10-11T22:00:00+02:00",
+    })
+}
+
 async fn json_body(response: Response) -> Value {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
@@ -57,7 +70,7 @@ async fn assert_upstream_error(response: Response) {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert_eq!(
         json_body(response).await,
-        json!({ "error": "upstream_error" })
+        json!({ "error": "upstream_error", "schedule": open_until_ten_at_night() })
     );
 }
 
@@ -84,6 +97,7 @@ async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
             "notes": "Cerradas las zonas infantiles, deportivas y de mayores. \
                       Suspendidos los eventos al aire libre.",
             "fetched_at": "2026-10-11T09:30:00Z",
+            "schedule": open_until_ten_at_night(),
         })
     );
 }
@@ -166,6 +180,45 @@ async fn absent_details_are_served_as_null() {
             "reopening": null,
             "notes": null,
             "fetched_at": "2026-10-11T09:30:00Z",
+            "schedule": open_until_ten_at_night(),
+        })
+    );
+}
+
+#[tokio::test]
+async fn within_opening_hours_the_schedule_says_when_the_park_closes() {
+    let response = get_at(
+        fetched("code_1_open.json"),
+        "2026-10-11T21:59:59+02:00".parse().unwrap(),
+        RETIRO_STATUS,
+    )
+    .await;
+
+    assert_eq!(
+        json_body(response).await["schedule"],
+        json!({
+            "open_now": true,
+            "opens_at": null,
+            "closes_at": "2026-10-11T22:00:00+02:00",
+        })
+    );
+}
+
+#[tokio::test]
+async fn outside_opening_hours_the_schedule_says_when_the_park_opens() {
+    let response = get_at(
+        fetched("code_1_open.json"),
+        "2026-10-11T22:00:00+02:00".parse().unwrap(),
+        RETIRO_STATUS,
+    )
+    .await;
+
+    assert_eq!(
+        json_body(response).await["schedule"],
+        json!({
+            "open_now": false,
+            "opens_at": "2026-10-12T06:00:00+02:00",
+            "closes_at": null,
         })
     );
 }
@@ -226,6 +279,6 @@ async fn an_upstream_that_never_responds_is_a_gateway_timeout() {
     assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     assert_eq!(
         json_body(response).await,
-        json!({ "error": "upstream_timeout" })
+        json!({ "error": "upstream_timeout", "schedule": open_until_ten_at_night() })
     );
 }

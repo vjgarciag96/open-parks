@@ -76,6 +76,11 @@ fn the_binary_serves_retiros_status_from_sigma_over_http() {
     let mut body = serde_json::from_str::<Value>(body).unwrap();
     let fetched_at = body.as_object_mut().unwrap().remove("fetched_at");
     assert!(fetched_at.is_some_and(|value| value.is_string()), "{body}");
+    let schedule = body.as_object_mut().unwrap().remove("schedule");
+    assert!(
+        schedule.is_some_and(|value| value["open_now"].is_boolean()),
+        "{body}"
+    );
     assert_eq!(
         body,
         json!({
