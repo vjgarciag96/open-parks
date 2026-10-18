@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use jiff::{RoundMode, Timestamp, TimestampRound, Unit};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 use crate::clock::Clock;
 use crate::error::with_sources;
@@ -30,13 +31,14 @@ impl Fetched {
     }
 }
 
+/// Polls until every receiver is dropped or the task is aborted.
 pub async fn start(
     sigma: sigma::Client,
     interval: Duration,
     clock: impl Clock,
-) -> watch::Receiver<Latest> {
+) -> (watch::Receiver<Latest>, JoinHandle<()>) {
     let (latest, receiver) = watch::channel(fetch(&sigma, &clock).await);
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         loop {
             tokio::time::sleep(interval).await;
             if latest.is_closed() {
@@ -52,7 +54,7 @@ pub async fn start(
             });
         }
     });
-    receiver
+    (receiver, task)
 }
 
 async fn fetch(sigma: &sigma::Client, clock: &impl Clock) -> Latest {

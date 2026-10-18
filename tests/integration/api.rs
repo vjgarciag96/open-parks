@@ -46,7 +46,7 @@ async fn get_retiro_status(fixture_name: &str) -> Response {
 
 async fn get_retiro_status_from(upstream: Url, timeout: Duration) -> Response {
     let client = sigma::Client::new(upstream, timeout).unwrap();
-    let latest = poller::start(client, Duration::from_secs(3600), Timestamp::now).await;
+    let (latest, _) = poller::start(client, Duration::from_secs(3600), Timestamp::now).await;
     get(latest, RETIRO_STATUS).await
 }
 
