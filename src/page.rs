@@ -300,6 +300,15 @@ fn render(
                         (answer)
                     }
                     (details)
+                    table.opening-hours {
+                        caption { (strings.opening_hours) }
+                        @for (months, hours) in strings.seasons {
+                            tr {
+                                th scope="row" { (months) }
+                                td { (hours) }
+                            }
+                        }
+                    }
                     @if let Some(bot) = &site.telegram_bot_username {
                         p.telegram {
                             a href={ "https://t.me/" (bot) } {

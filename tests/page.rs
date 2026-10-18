@@ -363,7 +363,7 @@ async fn the_page_shows_the_status_details() {
         "{body}"
     );
     assert!(
-        body.contains("<dt>Horario</dt><dd>de 14:00 a 20:00 h</dd>"),
+        body.contains("<dt>Horario de la incidencia</dt><dd>de 14:00 a 20:00 h</dd>"),
         "{body}"
     );
     assert!(
@@ -400,8 +400,11 @@ async fn absent_details_are_left_out() {
         body.contains("<dt>Fechas</dt><dd>10/10/2026</dd>"),
         "{body}"
     );
-    for term in ["Horario", "Reapertura", "Observaciones"] {
-        assert!(!body.contains(term), "{term}: {body}");
+    for term in ["Horario de la incidencia", "Reapertura", "Observaciones"] {
+        assert!(
+            !body.contains(&format!("<dt>{term}</dt>")),
+            "{term}: {body}"
+        );
     }
 }
 
@@ -470,6 +473,50 @@ async fn the_status_details_are_shown_in_english() {
 }
 
 #[tokio::test]
+async fn the_incident_hours_are_labelled_apart_from_the_parks_hours_in_english() {
+    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/en").await).await;
+
+    assert!(
+        body.contains("<dt>Incident hours</dt><dd>de 14:00 a 20:00 h</dd>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn each_page_shows_the_parks_hours_in_both_seasons() {
+    let cases = [
+        (
+            "/es",
+            r#"<table class="opening-hours"><caption>Horario</caption><tr><th scope="row">Octubre–Marzo</th><td>6:00–22:00</td></tr><tr><th scope="row">Abril–Septiembre</th><td>6:00–24:00</td></tr></table>"#,
+        ),
+        (
+            "/en",
+            r#"<table class="opening-hours"><caption>Hours</caption><tr><th scope="row">October–March</th><td>6:00–22:00</td></tr><tr><th scope="row">April–September</th><td>6:00–midnight</td></tr></table>"#,
+        ),
+    ];
+    for (uri, hours) in cases {
+        for latest in [
+            || fetched("code_6_red_alert_restrictions.json"),
+            || Err(sigma::FetchError::Timeout),
+        ] {
+            let body = text_body(get(latest(), uri).await).await;
+
+            assert!(body.contains(hours), "{uri}: {body}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_parks_hours_follow_the_status_details() {
+    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
+
+    assert!(
+        body.contains(r#"</time></p><table class="opening-hours">"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn the_page_links_to_the_telegram_bot_when_there_is_one() {
     for latest in [
         || fetched("code_1_open.json"),
@@ -520,12 +567,12 @@ async fn each_page_has_a_title_and_description_in_its_language() {
         (
             "/es",
             "<title>¿Está abierto el Retiro hoy? Parque del Retiro, Madrid</title>",
-            r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto"#,
+            r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.">"#,
         ),
         (
             "/en",
             "<title>Is Retiro Park open today? Live status, Madrid</title>",
-            r#"<meta name="description" content="Check whether Madrid’s Retiro Park is open"#,
+            r#"<meta name="description" content="Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.">"#,
         ),
     ];
     for (uri, title, description) in cases {
@@ -583,13 +630,14 @@ async fn the_link_preview_shows_the_verdict() {
     for expected in [
         r#"<meta property="og:type" content="website">"#,
         r#"<meta property="og:title" content="¿Está abierto el Retiro? Cerrado">"#,
-        r#"<meta property="og:description" content="Consulta si el Parque del Retiro"#,
+        r#"<meta property="og:description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y"#,
         r#"<meta property="og:locale" content="es_ES"><meta property="og:locale:alternate" content="en_GB">"#,
     ] {
         assert!(spanish.contains(expected), "{expected}: {spanish}");
     }
     for expected in [
         r#"<meta property="og:title" content="Is Retiro Park open? Closed">"#,
+        r#"<meta property="og:description" content="Check whether Madrid’s Retiro Park is open, its opening hours and"#,
         r#"<meta property="og:locale" content="en_GB"><meta property="og:locale:alternate" content="es_ES">"#,
     ] {
         assert!(english.contains(expected), "{expected}: {english}");
