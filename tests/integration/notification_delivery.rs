@@ -74,7 +74,7 @@ fn fetch_time() -> Timestamp {
 
 async fn poll(upstream: &Upstream) -> watch::Receiver<Latest> {
     let client = sigma::Client::new(upstream.url.clone(), GENEROUS_TIMEOUT).unwrap();
-    poller::start(client, OFTEN, fetch_time).await
+    poller::start(client, OFTEN, fetch_time).await.0
 }
 
 async fn start(path: &Path, latest: watch::Receiver<Latest>, channels: Channels) {
@@ -262,4 +262,39 @@ async fn a_slow_channel_holds_back_neither_the_others_nor_the_notifier() {
     released.add_permits(1);
 
     assert_eq!(next(&mut held_received).await, reopening);
+}
+
+#[tokio::test]
+async fn once_the_poller_stops_the_notifier_finishes_after_its_channels_have_sent() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("open-parks.sqlite3");
+    let upstream = Upstream::serving("code_1_open.json").await;
+    let released = Arc::new(Semaphore::new(0));
+    let (recording, mut received) = recording();
+    let held = Held {
+        released: Arc::clone(&released),
+        recording,
+    };
+    let client = sigma::Client::new(upstream.url.clone(), GENEROUS_TIMEOUT).unwrap();
+    let (latest, poller) = poller::start(client, OFTEN, fetch_time).await;
+    let notifier = notifier::start(last_status(&path), latest, Channels::new().with(held))
+        .await
+        .unwrap();
+    wait_until_stored(&path, AlertCode::Open).await;
+    upstream.serve("code_7_closed.json");
+    next(&mut received).await;
+
+    poller.abort();
+    tokio::time::sleep(SHORT_TIMEOUT).await;
+    assert!(
+        !notifier.is_finished(),
+        "finished before the channel had sent"
+    );
+
+    released.add_permits(1);
+
+    tokio::time::timeout(GENEROUS_TIMEOUT, notifier)
+        .await
+        .expect("the notifier never finished")
+        .unwrap();
 }
