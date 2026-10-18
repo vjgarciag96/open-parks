@@ -53,9 +53,38 @@ nav a {
   color: #555;
 }
 
-dl {
-  margin: 1.5rem auto 0;
+section {
+  width: 100%;
   max-width: 32rem;
+  box-sizing: border-box;
+  margin: 1.5rem auto 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid #ddd;
+  border-radius: 0.75rem;
+}
+
+section + section {
+  margin-top: 1rem;
+}
+
+section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+.alert,
+.now {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+dl {
+  margin: 1rem 0 0;
 }
 
 dt {
@@ -72,17 +101,9 @@ dd {
 }
 
 .opening-hours {
-  margin: 1.5rem auto 0;
+  margin: 1rem auto 0;
   font-size: 0.9rem;
   border-collapse: collapse;
-}
-
-.opening-hours caption {
-  margin-bottom: 0.25rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #555;
 }
 
 .opening-hours th {
@@ -97,7 +118,7 @@ dd {
 }
 
 .updated {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   font-size: 0.9rem;
 }
 

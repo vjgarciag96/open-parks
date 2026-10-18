@@ -64,6 +64,12 @@ pub enum Verdict {
     Unknown,
 }
 
+impl Verdict {
+    pub fn closure_or_forecast(self) -> bool {
+        matches!(self, Verdict::ClosureForecast | Verdict::Closed)
+    }
+}
+
 // Clients can't act on a value SIGMA doesn't document, so the raw number
 // stays internal.
 fn unknown<S: Serializer>(_raw: &i16, serializer: S) -> Result<S::Ok, S::Error> {

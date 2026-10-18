@@ -20,10 +20,13 @@ const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
 const DETAILED: &str = "code_6_red_alert_restrictions";
 const LANGS: [&str; 2] = ["es", "en"];
 const TELEGRAM_BOT: &str = "retiro_abierto_bot";
+const DAY: &str = "2026-10-11T09:30:00Z";
+const NIGHT: &str = "2026-10-11T21:30:00Z";
 
 struct Preview {
     name: String,
     latest: Latest,
+    fetched_at: Timestamp,
     age: SignedDuration,
     telegram_bot_username: Option<&'static str>,
 }
@@ -38,11 +41,12 @@ async fn main() -> std::io::Result<()> {
     for Preview {
         name,
         latest,
+        fetched_at,
         age,
         telegram_bot_username,
     } in previews()?
     {
-        let now = Timestamp::UNIX_EPOCH + age;
+        let now = fetched_at + age;
         let router = page::router(
             watch::channel(latest).1,
             move || now,
@@ -71,35 +75,48 @@ fn previews() -> std::io::Result<Vec<Preview>> {
         let Ok(status) = sigma::decode(&json) else {
             continue;
         };
-        let fetched = |variant: &str, minutes, telegram_bot_username| Preview {
-            name: format!("{name}{variant}"),
-            latest: Ok(Fetched {
-                status: status.clone(),
-                fetched_at: Timestamp::UNIX_EPOCH,
-            }),
-            age: SignedDuration::from_mins(minutes),
-            telegram_bot_username,
+        let fetched = |variant: &str, at: &str, minutes, telegram_bot_username| {
+            let fetched_at = at.parse().unwrap();
+            Preview {
+                name: format!("{name}{variant}"),
+                latest: Ok(Fetched {
+                    status: status.clone(),
+                    fetched_at,
+                }),
+                fetched_at,
+                age: SignedDuration::from_mins(minutes),
+                telegram_bot_username,
+            }
         };
-        previews.push(fetched("", 0, None));
+        previews.push(fetched("", DAY, 0, None));
+        previews.push(fetched(".night", NIGHT, 0, None));
         if name == DETAILED {
-            previews.push(fetched(".5_minutes_old", 5, None));
-            previews.push(fetched(".stale", 15, None));
-            previews.push(fetched(".2_days_old", 2 * 24 * 60, None));
-            previews.push(fetched(".telegram_bot", 0, Some(TELEGRAM_BOT)));
+            previews.push(fetched(".5_minutes_old", DAY, 5, None));
+            previews.push(fetched(".stale", DAY, 15, None));
+            previews.push(fetched(".2_days_old", DAY, 2 * 24 * 60, None));
+            previews.push(fetched(".telegram_bot", DAY, 0, Some(TELEGRAM_BOT)));
         }
     }
-    for (name, error, telegram_bot_username) in [
-        ("upstream_error", FetchError::BodyTooLarge, None),
-        ("upstream_timeout", FetchError::Timeout, None),
+    for (name, error, at, telegram_bot_username) in [
+        ("upstream_error", FetchError::BodyTooLarge, DAY, None),
+        (
+            "upstream_error.night",
+            FetchError::BodyTooLarge,
+            NIGHT,
+            None,
+        ),
+        ("upstream_timeout", FetchError::Timeout, DAY, None),
         (
             "upstream_timeout.telegram_bot",
             FetchError::Timeout,
+            DAY,
             Some(TELEGRAM_BOT),
         ),
     ] {
         previews.push(Preview {
             name: name.to_owned(),
             latest: Err(error),
+            fetched_at: at.parse().unwrap(),
             age: SignedDuration::ZERO,
             telegram_bot_username,
         });

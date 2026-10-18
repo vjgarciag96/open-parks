@@ -1,4 +1,5 @@
 use jiff::SignedDuration;
+use jiff::civil::Time;
 
 use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
 
@@ -43,6 +44,15 @@ pub(crate) struct Strings {
     pub(crate) question: &'static str,
     pub(crate) headline: fn(Verdict) -> &'static str,
     pub(crate) upstream_failure: &'static str,
+    pub(crate) open: &'static str,
+    pub(crate) open_closure_expected: &'static str,
+    pub(crate) closed: &'static str,
+    pub(crate) closed_by_schedule: &'static str,
+    pub(crate) opens_at: fn(Time) -> String,
+    pub(crate) closes_at: fn(Time) -> String,
+    pub(crate) alerts: &'static str,
+    pub(crate) alert: fn(Verdict) -> &'static str,
+    pub(crate) alerts_unchecked: &'static str,
     pub(crate) opening_hours: &'static str,
     // The seasons in `schedule::retiro`, which these have to follow.
     pub(crate) seasons: [(&'static str, &'static str); 2],
@@ -75,6 +85,10 @@ impl Strings {
         .into_iter()
         .filter_map(|(term, description)| Some((term, description?)))
     }
+}
+
+fn hours_and_minutes(time: Time) -> String {
+    format!("{:02}:{:02}", time.hour(), time.minute())
 }
 
 #[derive(Clone, Copy)]
@@ -113,10 +127,29 @@ const ES: Strings = Strings {
         Verdict::OpenWithRestrictions => "Abierto con restricciones",
         Verdict::OpenStayNotAdvised => "Abierto, pero no se recomienda permanecer",
         Verdict::ClosureForecast => "Cierre previsto",
-        Verdict::Closed => "Cerrado",
+        Verdict::Closed => "Cerrado por alerta meteorológica",
         Verdict::Unknown => "Estado desconocido",
     },
     upstream_failure: "No hemos podido consultar el estado",
+    open: "Abierto",
+    open_closure_expected: "Abierto, cierre previsto por alerta",
+    closed: "Cerrado",
+    closed_by_schedule: "Cerrado por horario",
+    opens_at: |time| format!("Abre a las {}", hours_and_minutes(time)),
+    closes_at: |time| match time {
+        Time::MIN => "Cierra a medianoche".to_owned(),
+        time => format!("Cierra a las {}", hours_and_minutes(time)),
+    },
+    alerts: "Alertas",
+    alert: |verdict| match verdict {
+        Verdict::Open => "Sin alertas",
+        Verdict::OpenWithRestrictions => "Con restricciones",
+        Verdict::OpenStayNotAdvised => "No se recomienda permanecer",
+        Verdict::ClosureForecast => "Cierre previsto",
+        Verdict::Closed => "Cerrado por alerta meteorológica",
+        Verdict::Unknown => "Estado desconocido",
+    },
+    alerts_unchecked: "No hemos podido consultar si hay alertas",
     opening_hours: "Horario",
     seasons: [
         ("Octubre–Marzo", "6:00–22:00"),
@@ -162,10 +195,29 @@ const EN: Strings = Strings {
         Verdict::OpenWithRestrictions => "Open with restrictions",
         Verdict::OpenStayNotAdvised => "Open, but staying is not advised",
         Verdict::ClosureForecast => "Closure expected",
-        Verdict::Closed => "Closed",
+        Verdict::Closed => "Closed due to a weather alert",
         Verdict::Unknown => "Status unknown",
     },
     upstream_failure: "We couldn’t check the status",
+    open: "Open",
+    open_closure_expected: "Open, closure expected due to an alert",
+    closed: "Closed",
+    closed_by_schedule: "Closed for the night",
+    opens_at: |time| format!("Opens at {}", hours_and_minutes(time)),
+    closes_at: |time| match time {
+        Time::MIN => "Closes at midnight".to_owned(),
+        time => format!("Closes at {}", hours_and_minutes(time)),
+    },
+    alerts: "Alerts",
+    alert: |verdict| match verdict {
+        Verdict::Open => "No alerts",
+        Verdict::OpenWithRestrictions => "Restrictions in place",
+        Verdict::OpenStayNotAdvised => "Staying is not advised",
+        Verdict::ClosureForecast => "Closure expected",
+        Verdict::Closed => "Closed due to a weather alert",
+        Verdict::Unknown => "Status unknown",
+    },
+    alerts_unchecked: "We couldn’t check for weather alerts",
     opening_hours: "Hours",
     seasons: [
         ("October–March", "6:00–22:00"),
