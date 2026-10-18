@@ -4,8 +4,10 @@ use axum::http::StatusCode;
 use open_parks::database::Database;
 use open_parks::notifier::{Channel, Notification};
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast, Verdict};
+use open_parks::public_url::PublicUrl;
 use open_parks::strings::Lang;
 use open_parks::telegram::{self, BotToken, Broadcast, ChatId, Pace, Subscriber, Subscribers};
+use reqwest::Url;
 use tempfile::TempDir;
 
 use crate::support::fake_telegram::{FakeTelegram, Sent, TOKEN};
@@ -30,6 +32,11 @@ impl Delivery {
     }
 
     async fn paced(subscribed: &[Subscriber], pace: Pace) -> Self {
+        let public_url = PublicUrl::new(Url::parse("https://retiro.example").unwrap());
+        Self::linking(subscribed, pace, public_url).await
+    }
+
+    async fn linking(subscribed: &[Subscriber], pace: Pace, public_url: Option<PublicUrl>) -> Self {
         let directory = TempDir::new().unwrap();
         let database = Database::open(&directory.path().join("open-parks.sqlite3")).unwrap();
         let subscribers = Subscribers::new(database.clone());
@@ -45,7 +52,7 @@ impl Delivery {
         .unwrap();
         Self {
             fake,
-            broadcast: Broadcast::new(client, Subscribers::new(database), pace),
+            broadcast: Broadcast::new(client, Subscribers::new(database), pace, public_url),
             subscribers,
             _directory: directory,
         }
@@ -123,7 +130,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
                  Fechas: 13/10/2026\n\
                  Reapertura: Cuando terminen las inspecciones\n\
                  Observaciones: Viento fuerte\n\n\
-                 https://retiroabierto.duckdns.org/es"
+                 https://retiro.example/es"
             ),
             message(
                 2,
@@ -132,7 +139,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
                  Dates: 13/10/2026\n\
                  Reopening: Once inspections finish\n\
                  Notes: Viento fuerte\n\n\
-                 https://retiroabierto.duckdns.org/en"
+                 https://retiro.example/en"
             ),
         ]
     );
@@ -159,7 +166,7 @@ async fn the_wording_tells_a_closure_forecast_an_escalation_and_a_reopening_apar
         delivery.send(notification).await;
     }
 
-    let link = "\n\nhttps://retiroabierto.duckdns.org/en";
+    let link = "\n\nhttps://retiro.example/en";
     assert_eq!(
         delivery.sent(),
         [
@@ -202,9 +209,20 @@ async fn a_reopening_in_spanish_gives_the_hours() {
             "El Retiro ha vuelto a abrir.\n\
              Abierto\n\n\
              Horario de la incidencia: de 14:00 a 20:00 h\n\n\
-             https://retiroabierto.duckdns.org/es"
+             https://retiro.example/es"
         )]
     );
+}
+
+#[tokio::test]
+async fn without_a_public_url_a_notice_has_no_link() {
+    let mut delivery = Delivery::linking(&[subscriber(1, Lang::En)], FAST, None).await;
+
+    delivery
+        .send(change(Verdict::Closed, AlertCode::Open))
+        .await;
+
+    assert_eq!(delivery.sent(), [message(1, "Retiro has reopened.\nOpen")]);
 }
 
 #[tokio::test]
