@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::sigma::{self, DecodeError};
 
@@ -162,8 +164,9 @@ fn an_error_body_without_a_message_is_malformed_and_names_the_field() {
         panic!("expected Malformed, got {result:?}");
     };
     assert!(
-        error.to_string().contains("message"),
-        "error should name the field: {error}"
+        with_sources(&error).contains("message"),
+        "error should name the field: {}",
+        with_sources(&error)
     );
 }
 
@@ -175,8 +178,9 @@ fn a_missing_alert_code_is_malformed_and_names_the_field() {
         panic!("expected Malformed, got {result:?}");
     };
     assert!(
-        error.to_string().contains("ALERTA_DESCRIPCION"),
-        "error should name the field: {error}"
+        with_sources(&error).contains("ALERTA_DESCRIPCION"),
+        "error should name the field: {}",
+        with_sources(&error)
     );
 }
 
@@ -220,4 +224,14 @@ fn undocumented_codes_decode_as_unknown_with_the_raw_value() {
             notes: None,
         }
     );
+}
+
+fn with_sources(error: &dyn Error) -> String {
+    let mut said = error.to_string();
+    let mut source = error.source();
+    while let Some(error) = source {
+        said += &format!(": {error}");
+        source = error.source();
+    }
+    said
 }
