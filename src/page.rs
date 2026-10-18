@@ -341,10 +341,14 @@ fn render(
                     section.schedule {
                         h2 { (strings.opening_hours) }
                         table.opening-hours {
-                            @for (months, hours) in strings.seasons {
+                            @for season in &schedule::SEASONS {
                                 tr.row {
-                                    th scope="row" { (months) }
-                                    td { (hours) }
+                                    th scope="row" {
+                                        (strings.month(season.first_month))
+                                        "–"
+                                        (strings.month(season.last_month))
+                                    }
+                                    td { ((strings.season_hours)(season)) }
                                 }
                             }
                         }

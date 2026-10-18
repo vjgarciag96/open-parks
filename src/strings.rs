@@ -2,6 +2,7 @@ use jiff::SignedDuration;
 use jiff::civil::Time;
 
 use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
+use crate::schedule::Season;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -54,8 +55,9 @@ pub(crate) struct Strings {
     pub(crate) alert: fn(Verdict) -> &'static str,
     pub(crate) alerts_unchecked: &'static str,
     pub(crate) opening_hours: &'static str,
-    // The seasons in `schedule::retiro`, which these have to follow.
-    pub(crate) seasons: [(&'static str, &'static str); 2],
+    /// January first.
+    pub(crate) months: [&'static str; 12],
+    pub(crate) season_hours: fn(&Season) -> String,
     pub(crate) dates: &'static str,
     pub(crate) incident_hours: &'static str,
     pub(crate) reopening: &'static str,
@@ -84,6 +86,12 @@ impl Strings {
         ]
         .into_iter()
         .filter_map(|(term, description)| Some((term, description?)))
+    }
+}
+
+impl Strings {
+    pub(crate) fn month(&self, month: i8) -> &'static str {
+        self.months[usize::try_from(month - 1).expect("months start at 1")]
     }
 }
 
@@ -151,10 +159,21 @@ const ES: Strings = Strings {
     },
     alerts_unchecked: "No hemos podido consultar si hay alertas",
     opening_hours: "Horario",
-    seasons: [
-        ("Octubre–Marzo", "6:00–22:00"),
-        ("Abril–Septiembre", "6:00–24:00"),
+    months: [
+        "Enero",
+        "Febrero",
+        "Marzo",
+        "Abril",
+        "Mayo",
+        "Junio",
+        "Julio",
+        "Agosto",
+        "Septiembre",
+        "Octubre",
+        "Noviembre",
+        "Diciembre",
     ],
+    season_hours: |season| format!("{}:00–{}:00", season.opens, season.closes),
     dates: "Fechas",
     incident_hours: "Horario de la incidencia",
     reopening: "Reapertura",
@@ -219,10 +238,24 @@ const EN: Strings = Strings {
     },
     alerts_unchecked: "We couldn’t check for weather alerts",
     opening_hours: "Hours",
-    seasons: [
-        ("October–March", "6:00–22:00"),
-        ("April–September", "6:00–midnight"),
+    months: [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ],
+    season_hours: |season| match season.closes {
+        24 => format!("{}:00–midnight", season.opens),
+        closes => format!("{}:00–{closes}:00", season.opens),
+    },
     dates: "Dates",
     incident_hours: "Incident hours",
     reopening: "Reopening",
