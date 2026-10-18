@@ -5,6 +5,7 @@ use http_body_util::BodyExt;
 use jiff::Timestamp;
 use open_parks::page;
 use open_parks::poller::{Fetched, Latest};
+use open_parks::public_url::PublicUrl;
 use open_parks::sigma;
 use reqwest::Url;
 use tokio::sync::watch;
@@ -42,8 +43,8 @@ async fn send_to(
     .unwrap()
 }
 
-fn public(url: &str) -> page::PublicUrl {
-    page::PublicUrl::new(Url::parse(url).unwrap()).unwrap()
+fn public(url: &str) -> PublicUrl {
+    PublicUrl::new(Url::parse(url).unwrap()).unwrap()
 }
 
 async fn get_with_public_url(latest: Latest, uri: &str) -> Response {
@@ -1052,31 +1053,4 @@ async fn there_is_no_sitemap_without_a_public_url() {
     let response = get(fetched("code_1_open.json"), "/sitemap.xml").await;
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-}
-
-#[test]
-fn a_public_url_is_an_http_or_https_origin() {
-    for url in [
-        "https://retiro.example",
-        "https://retiro.example/",
-        "http://localhost:3000",
-    ] {
-        assert!(
-            page::PublicUrl::new(Url::parse(url).unwrap()).is_some(),
-            "{url}"
-        );
-    }
-    for url in [
-        "https://retiro.example/parks",
-        "https://retiro.example/?lang=es",
-        "https://retiro.example/#top",
-        "https://user@retiro.example",
-        "ftp://retiro.example",
-        "mailto:retiro@example.org",
-    ] {
-        assert!(
-            page::PublicUrl::new(Url::parse(url).unwrap()).is_none(),
-            "{url}"
-        );
-    }
 }
