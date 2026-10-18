@@ -1,32 +1,11 @@
 use jiff::SignedDuration;
 use jiff::civil::Time;
 
+use crate::lang::Lang;
 use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
 use crate::schedule::Season;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Lang {
-    Es,
-    En,
-}
-
 impl Lang {
-    pub(crate) const ALL: [Lang; 2] = [Lang::Es, Lang::En];
-
-    pub(crate) fn from_tag(tag: &str) -> Option<Lang> {
-        let primary = tag.trim().split('-').next()?;
-        Lang::ALL
-            .into_iter()
-            .find(|lang| primary.eq_ignore_ascii_case(lang.strings().code))
-    }
-
-    pub(crate) fn other(self) -> Lang {
-        match self {
-            Lang::Es => Lang::En,
-            Lang::En => Lang::Es,
-        }
-    }
-
     pub(crate) fn strings(self) -> &'static Strings {
         match self {
             Lang::Es => &ES,
@@ -36,10 +15,6 @@ impl Lang {
 }
 
 pub(crate) struct Strings {
-    pub(crate) code: &'static str,
-    pub(crate) locale: &'static str,
-    pub(crate) path: &'static str,
-    pub(crate) name: &'static str,
     pub(crate) title: &'static str,
     pub(crate) description: &'static str,
     pub(crate) question: &'static str,
@@ -123,10 +98,6 @@ impl Age {
 }
 
 const ES: Strings = Strings {
-    code: "es",
-    locale: "es_ES",
-    path: "/es",
-    name: "Español",
     title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
     description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
     question: "¿Está abierto el Retiro?",
@@ -202,10 +173,6 @@ const ES: Strings = Strings {
 };
 
 const EN: Strings = Strings {
-    code: "en",
-    locale: "en_GB",
-    path: "/en",
-    name: "English",
     title: "Is Retiro Park open today? Live status, Madrid",
     description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.",
     question: "Is Retiro Park open?",

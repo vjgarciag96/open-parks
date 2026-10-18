@@ -11,11 +11,12 @@ use tokio::sync::watch;
 
 use crate::clock::Clock;
 use crate::headline::{Alerts, Headline};
+use crate::lang::Lang;
 use crate::park_status::{ParkStatus, Verdict};
 use crate::poller::{Fetched, Latest};
 use crate::public_url::PublicUrl;
 use crate::schedule;
-use crate::strings::{Age, Lang, Strings};
+use crate::strings::{Age, Strings};
 
 const STYLE: &str = include_str!("../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
@@ -31,7 +32,7 @@ const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.
 fn alternates(public_url: &PublicUrl) -> impl Iterator<Item = (&'static str, String)> {
     Lang::ALL
         .into_iter()
-        .map(|lang| (lang.strings().code, public_url.of(lang.strings().path)))
+        .map(|lang| (lang.code(), public_url.of(lang.path())))
         .chain([("x-default", public_url.of("/"))])
 }
 
@@ -99,7 +100,7 @@ fn sitemap_xml(site: &Site) -> Response {
     let urls: String = Lang::ALL
         .into_iter()
         .map(|lang| {
-            let loc = public_url.of(lang.strings().path);
+            let loc = public_url.of(lang.path());
             format!("<url><loc>{loc}</loc>{alternates}</url>")
         })
         .collect();
@@ -129,7 +130,7 @@ fn redirect_to_preferred(headers: &HeaderMap) -> Response {
     (
         StatusCode::FOUND,
         [
-            (header::LOCATION, lang.strings().path),
+            (header::LOCATION, lang.path()),
             (header::VARY, "accept-language"),
         ],
     )
@@ -188,7 +189,6 @@ fn retiro_status(
     lang: Lang,
 ) -> Response {
     let strings = lang.strings();
-    let other = lang.other().strings();
     let now = clock.now();
     let schedule = schedule::retiro(now);
     match &*latest.borrow() {
@@ -196,8 +196,7 @@ fn retiro_status(
             let alerts = Alerts::Checked(fetched.status.code.verdict());
             let headline = Headline::new(strings, alerts, &schedule);
             render(
-                strings,
-                other,
+                lang,
                 &site,
                 &headline,
                 tone(alerts),
@@ -207,14 +206,7 @@ fn retiro_status(
         }
         Err(error) => {
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
-            let page = render(
-                strings,
-                other,
-                &site,
-                &headline,
-                tone(Alerts::Unchecked),
-                html! {},
-            );
+            let page = render(lang, &site, &headline, tone(Alerts::Unchecked), html! {});
             (error.gateway_status(), page).into_response()
         }
     }
@@ -271,18 +263,11 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
     }
 }
 
-fn render(
-    strings: &Strings,
-    other: &Strings,
-    site: &Site,
-    headline: &Headline,
-    tone: Tone,
-    details: Markup,
-) -> Markup {
-    let languages = Lang::ALL.map(Lang::strings);
+fn render(lang: Lang, site: &Site, headline: &Headline, tone: Tone, details: Markup) -> Markup {
+    let strings = lang.strings();
     html! {
         (DOCTYPE)
-        html lang=(strings.code) {
+        html lang=(lang.code()) {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
@@ -293,28 +278,28 @@ fn render(
                 title { (strings.title) }
                 meta name="description" content=(strings.description);
                 @if let Some(public_url) = &site.public_url {
-                    link rel="canonical" href=(public_url.of(strings.path));
+                    link rel="canonical" href=(public_url.of(lang.path()));
                     @for (hreflang, href) in alternates(public_url) {
                         link rel="alternate" hreflang=(hreflang) href=(href);
                     }
-                    meta property="og:url" content=(public_url.of(strings.path));
+                    meta property="og:url" content=(public_url.of(lang.path()));
                 }
                 meta property="og:type" content="website";
                 meta property="og:title" content={ (strings.question) " " (headline.preview) };
                 meta property="og:description" content=(strings.description);
-                meta property="og:locale" content=(strings.locale);
-                meta property="og:locale:alternate" content=(other.locale);
+                meta property="og:locale" content=(lang.locale());
+                meta property="og:locale:alternate" content=(lang.other().locale());
                 link rel="icon" href="/favicon.svg" type="image/svg+xml";
                 style { (PreEscaped(STYLE)) }
             }
             body {
                 nav {
-                    @for language in languages {
-                        @if language.code == strings.code {
-                            span aria-current="page" { (language.name) }
+                    @for language in Lang::ALL {
+                        @if language == lang {
+                            span aria-current="page" { (language.name()) }
                         } @else {
-                            a href=(language.path) hreflang=(language.code) lang=(language.code) {
-                                (language.name)
+                            a href=(language.path()) hreflang=(language.code()) lang=(language.code()) {
+                                (language.name())
                             }
                         }
                     }
