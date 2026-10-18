@@ -100,7 +100,7 @@ fn fetched(fixture_name: &str) -> Latest {
 }
 
 fn h1(question: &str, answer: &str) -> String {
-    format!(r#"<h1><span class="question">{question}</span> {answer}</h1>"#)
+    format!(r#"<span class="question">{question}</span> {answer}</h1>"#)
 }
 
 fn assert_html(response: &Response) {
@@ -140,22 +140,32 @@ struct Headline {
     schedule: Option<&'static str>,
 }
 
-fn alerts_box(heading: &str, alert: &str) -> String {
-    format!(r#"<section class="alerts"><h2>{heading}</h2><p class="alert">{alert}</p>"#)
+fn alerts_box(heading: &str, alert: &str) -> [String; 2] {
+    [
+        format!(r#"<section class="alerts"><h2>{heading}</h2><p class="alert "#),
+        format!(r#"</span>{alert}</p>"#),
+    ]
 }
 
-fn schedule_box(heading: &str, schedule: Option<&str>) -> String {
-    let now = schedule
-        .map(|schedule| format!(r#"<p class="now">{schedule}</p>"#))
-        .unwrap_or_default();
-    format!(r#"<section class="schedule"><h2>{heading}</h2>{now}<table class="opening-hours">"#)
+fn schedule_line(schedule: Option<&str>) -> String {
+    match schedule {
+        Some(schedule) => format!(r#"</h1><p class="now">{schedule}</p><section class="alerts">"#),
+        None => r#"</h1><section class="alerts">"#.to_owned(),
+    }
+}
+
+fn schedule_box(heading: &str) -> String {
+    format!(r#"<section class="schedule"><h2>{heading}</h2><table class="opening-hours">"#)
 }
 
 fn assert_headline(body: &str, question: &str, (alerts, hours): (&str, &str), expected: &Headline) {
+    let [alerts_heading, alert] = alerts_box(alerts, expected.alert);
     for part in [
         h1(question, expected.answer),
-        alerts_box(alerts, expected.alert),
-        schedule_box(hours, expected.schedule),
+        schedule_line(expected.schedule),
+        alerts_heading,
+        alert,
+        schedule_box(hours),
     ] {
         assert!(body.contains(&part), "{part}: {body}");
     }
@@ -242,7 +252,7 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
 
 #[tokio::test]
 async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
-    let reopens = Some("Cerrado por horario · Abre a las 06:00");
+    let reopens = Some("Cerrado por horario\u{a0}· Abre a las 06:00");
     let cases = [
         ("code_1_open.json", "Sin alertas", reopens),
         ("code_2_incidents.json", "Con restricciones", reopens),
@@ -289,11 +299,11 @@ async fn in_summer_the_park_closes_at_midnight() {
     let english = body_at("code_1_open.json", WITHIN_SUMMER_HOURS, "/en").await;
 
     assert!(
-        spanish.contains(&schedule_box("Horario", Some("Cierra a medianoche"))),
+        spanish.contains(&schedule_line(Some("Cierra a medianoche"))),
         "{spanish}"
     );
     assert!(
-        english.contains(&schedule_box("Hours", Some("Closes at midnight"))),
+        english.contains(&schedule_line(Some("Closes at midnight"))),
         "{english}"
     );
 }
@@ -320,7 +330,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
         (
             OUTSIDE_HOURS,
             "Cerrado",
-            Some("Cerrado por horario · Abre a las 06:00"),
+            Some("Cerrado por horario\u{a0}· Abre a las 06:00"),
         ),
     ];
     for (now, answer, schedule) in cases {
@@ -478,7 +488,7 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
 
 #[tokio::test]
 async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
-    let reopens = Some("Closed for the night · Opens at 06:00");
+    let reopens = Some("Closed for the night\u{a0}· Opens at 06:00");
     let cases = [
         ("code_1_open.json", "No alerts", reopens),
         ("code_2_incidents.json", "Restrictions in place", reopens),
@@ -530,7 +540,7 @@ async fn a_failing_upstream_outside_hours_is_explained_in_english() {
         &Headline {
             answer: "Closed",
             alert: "We couldn’t check for weather alerts",
-            schedule: Some("Closed for the night · Opens at 06:00"),
+            schedule: Some("Closed for the night\u{a0}· Opens at 06:00"),
         },
     );
 }
@@ -769,11 +779,11 @@ async fn each_page_shows_the_parks_hours_in_both_seasons() {
     let cases = [
         (
             "/es",
-            r#"<section class="schedule"><h2>Horario</h2><p class="now">Cierra a las 22:00</p><table class="opening-hours"><tr><th scope="row">Octubre–Marzo</th><td>6:00–22:00</td></tr><tr><th scope="row">Abril–Septiembre</th><td>6:00–24:00</td></tr></table>"#,
+            r#"<section class="schedule"><h2>Horario</h2><table class="opening-hours"><tr class="row"><th scope="row">Octubre–Marzo</th><td>6:00–22:00</td></tr><tr class="row"><th scope="row">Abril–Septiembre</th><td>6:00–24:00</td></tr></table>"#,
         ),
         (
             "/en",
-            r#"<section class="schedule"><h2>Hours</h2><p class="now">Closes at 22:00</p><table class="opening-hours"><tr><th scope="row">October–March</th><td>6:00–22:00</td></tr><tr><th scope="row">April–September</th><td>6:00–midnight</td></tr></table>"#,
+            r#"<section class="schedule"><h2>Hours</h2><table class="opening-hours"><tr class="row"><th scope="row">October–March</th><td>6:00–22:00</td></tr><tr class="row"><th scope="row">April–September</th><td>6:00–midnight</td></tr></table>"#,
         ),
     ];
     for (uri, hours) in cases {
@@ -793,7 +803,7 @@ async fn the_parks_hours_follow_the_alerts() {
     let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
 
     assert!(
-        body.contains(r#"</time></p></section><section class="schedule">"#),
+        body.contains(r#"</time></span></p></section><section class="schedule">"#),
         "{body}"
     );
 }
