@@ -3,6 +3,7 @@ RUN apk add --no-cache musl-dev
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src src
+COPY assets assets
 RUN cargo build --release --locked
 # `scratch` has no shell to create it.
 RUN mkdir /data

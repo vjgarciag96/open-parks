@@ -45,7 +45,6 @@ pub struct ProfileCall {
     pub params: Value,
 }
 
-#[allow(dead_code)]
 impl FakeTelegram {
     pub async fn start() -> Self {
         let fake = Self {

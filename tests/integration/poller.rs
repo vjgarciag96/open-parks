@@ -14,12 +14,9 @@ use reqwest::Url;
 use tokio::sync::watch;
 use tower::ServiceExt;
 
-mod common;
-mod fake_upstream;
-mod timeouts;
-use common::fixture;
-use fake_upstream::{json, serving, serving_json};
-use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
+use crate::support::fake_sigma::{json, serving, serving_json};
+use crate::support::fixtures::fixture;
+use crate::support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 const NEVER: Duration = Duration::from_secs(3600);
 const OFTEN: Duration = Duration::from_millis(10);

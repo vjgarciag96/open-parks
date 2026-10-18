@@ -18,9 +18,9 @@ use crate::poller::{Fetched, Latest};
 use crate::schedule;
 use crate::strings::{Age, Lang, Strings};
 
-const STYLE: &str = include_str!("page/page.css");
-const TELEGRAM_LOGO: &str = include_str!("page/telegram_logo.svg");
-const FAVICON: &str = include_str!("page/favicon.svg");
+const STYLE: &str = include_str!("../assets/page.css");
+const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
+const FAVICON: &str = include_str!("../assets/favicon.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
