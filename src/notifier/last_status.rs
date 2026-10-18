@@ -4,6 +4,9 @@ use crate::database::{Database, DatabaseError};
 use crate::park_status::AlertCode;
 use crate::sigma;
 
+/// Stores the code as SIGMA numbers it, rather than in a numbering of its
+/// own: SIGMA documents those numbers, and a code this build doesn't know
+/// still reads back as the one SIGMA sent.
 #[derive(Clone)]
 pub struct LastStatus {
     database: Database,
