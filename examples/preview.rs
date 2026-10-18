@@ -20,6 +20,8 @@ const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
 const DETAILED: &str = "code_6_red_alert_restrictions";
 const LANGS: [&str; 2] = ["es", "en"];
 const TELEGRAM_BOT: &str = "retiro_abierto_bot";
+const SCHEMES: [&str; 2] = ["light", "dark"];
+const SCHEMES_HEAD: &str = "<!DOCTYPE html><meta charset=utf-8><style>body{margin:1rem;font-family:system-ui;background:#888}.frames{display:flex;flex-wrap:wrap;gap:12px}iframe{border:0}.phone{width:390px;height:844px;border-radius:12px}.desktop{width:640px;height:400px;overflow:hidden;border-radius:12px}.desktop iframe{width:1280px;height:800px;transform:scale(0.5);transform-origin:0 0}</style>";
 const DAY: &str = "2026-10-11T09:30:00Z";
 const NIGHT: &str = "2026-10-11T21:30:00Z";
 
@@ -54,12 +56,32 @@ async fn main() -> std::io::Result<()> {
             None,
         );
         index.push_str(&format!("<li>{name}:"));
+        let mut phones = String::new();
+        let mut desktops = String::new();
         for lang in LANGS {
             let file = format!("{name}.{lang}.html");
             fs::write(output.join(&file), render(router.clone(), lang).await)?;
             index.push_str(&format!(" <a href=\"{file}\">{lang}</a>"));
+            for scheme in SCHEMES {
+                let frame = format!(
+                    "<iframe src=\"{file}\" style=\"color-scheme: {scheme}\" title=\"{lang} {scheme}\"></iframe>"
+                );
+                phones.push_str(&frame.replacen("<iframe", "<iframe class=\"phone\"", 1));
+                desktops.push_str(&format!("<div class=\"desktop\">{frame}</div>"));
+            }
         }
-        index.push_str("</li>");
+        let schemes = format!("{name}.html");
+        fs::write(
+            output.join(&schemes),
+            format!(
+                "{SCHEMES_HEAD}<title>{name}</title><h1>{name}</h1>\
+                 <h2>Desktop</h2><div class=\"frames\">{desktops}</div>\
+                 <h2>Phone</h2><div class=\"frames\">{phones}</div>"
+            ),
+        )?;
+        index.push_str(&format!(
+            " · <a href=\"{schemes}\">light &amp; dark</a></li>"
+        ));
     }
     index.push_str("</ul>");
     let index_path = output.join("index.html");
