@@ -45,13 +45,7 @@ impl Client {
         if !http_status.is_success() {
             return Err(FetchError::HttpStatus(http_status));
         }
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            if body.len() + chunk.len() > MAX_BODY_BYTES {
-                return Err(FetchError::BodyTooLarge);
-            }
-            body.extend_from_slice(&chunk);
-        }
+        let body = http::read_body(&mut response, MAX_BODY_BYTES, FetchError::BodyTooLarge).await?;
         Ok(decode(&String::from_utf8_lossy(&body))?)
     }
 }
