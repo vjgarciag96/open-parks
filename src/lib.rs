@@ -1,6 +1,7 @@
 pub mod api;
 pub mod clock;
 pub mod database;
+mod error;
 mod headline;
 mod http;
 pub mod notifier;
