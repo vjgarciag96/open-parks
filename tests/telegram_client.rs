@@ -11,10 +11,9 @@ use open_parks::telegram::{
 use reqwest::Url;
 use serde_json::json;
 
-mod fake_telegram;
-mod timeouts;
-use fake_telegram::{FakeTelegram, Sent, TOKEN};
-use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
+mod support;
+use support::fake_telegram::{FakeTelegram, Sent, TOKEN};
+use support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 fn client(url: Url, timeout: Duration) -> telegram::Client {
     telegram::Client::new(url, BotToken::new(TOKEN.to_owned()), timeout).unwrap()
@@ -302,7 +301,7 @@ async fn any_other_refusal_is_an_api_error_with_telegrams_description() {
 }
 
 async fn serving_any_method(handler: MethodRouter) -> Url {
-    fake_telegram::serving(Router::new().route("/{bot}/{method}", handler)).await
+    support::fake_telegram::serving(Router::new().route("/{bot}/{method}", handler)).await
 }
 
 fn everything_said_about(error: &RequestError) -> String {

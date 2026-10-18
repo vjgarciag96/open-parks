@@ -10,8 +10,8 @@ use reqwest::Url;
 use tokio::sync::watch;
 use tower::ServiceExt;
 
-mod common;
-use common::fixture;
+mod support;
+use support::fixtures::fixture;
 
 const FETCHED_AT: &str = "2026-10-11T09:30:00Z";
 const PUBLIC_URL: &str = "https://retiro.example";

@@ -23,7 +23,6 @@ where
     url_for(address)
 }
 
-#[allow(dead_code)]
 pub async fn serving_json(body: String) -> Url {
     serving(|| async move { json(body) }).await
 }
