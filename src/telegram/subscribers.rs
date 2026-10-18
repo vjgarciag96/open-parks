@@ -2,7 +2,7 @@ use rusqlite::OptionalExtension;
 
 use super::ChatId;
 use crate::database::{Database, DatabaseError};
-use crate::strings::Lang;
+use crate::lang::Lang;
 
 #[derive(Clone)]
 pub struct Subscribers {
@@ -26,7 +26,7 @@ impl Subscribers {
                 connection.execute(
                     "INSERT INTO telegram_subscribers (chat_id, language) VALUES (?1, ?2)
                      ON CONFLICT (chat_id) DO UPDATE SET language = excluded.language",
-                    (subscriber.chat.0, subscriber.lang.strings().code),
+                    (subscriber.chat.0, subscriber.lang.code()),
                 )?;
                 Ok(())
             })

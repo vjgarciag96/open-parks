@@ -8,8 +8,8 @@ use super::{
 };
 use crate::database::DatabaseError;
 use crate::error::with_sources;
+use crate::lang::Lang;
 use crate::poller::Latest;
-use crate::strings::Lang;
 
 const LONG_POLL: Duration = Duration::from_secs(30);
 const RETRY_AFTER: Duration = Duration::from_secs(5);
@@ -49,7 +49,7 @@ pub fn start(
 }
 
 async fn introduce(client: Client) {
-    for (language_code, lang) in [(None, Lang::En), (Some(Lang::Es.strings().code), Lang::Es)] {
+    for (language_code, lang) in [(None, Lang::En), (Some(Lang::Es.code()), Lang::Es)] {
         let replies = replies(lang);
         let commands = Command::ALL.map(|command| BotCommand {
             command: command.name(),
