@@ -367,8 +367,8 @@ pub enum RequestError {
     HttpStatus(StatusCode),
     #[error("Telegram's response is over {MAX_BODY_BYTES} bytes")]
     BodyTooLarge,
-    #[error("malformed response from Telegram: {0}")]
-    Malformed(serde_json::Error),
+    #[error("malformed response from Telegram")]
+    Malformed(#[source] serde_json::Error),
 }
 
 impl RequestError {
