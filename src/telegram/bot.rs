@@ -5,7 +5,7 @@ use tokio::task::JoinHandle;
 
 use super::{
     BotCommand, ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers,
-    UpdateKind, User, write_details,
+    UpdateKind, User, text,
 };
 use crate::database::DatabaseError;
 use crate::error::with_sources;
@@ -226,18 +226,10 @@ impl Bot {
     }
 
     fn status(&self, lang: Lang) -> String {
-        let strings = lang.strings();
-        let Ok(fetched) = &*self.latest.borrow() else {
-            return replies(lang).not_known_yet.to_owned();
-        };
-        let status = &fetched.status;
-        let mut text = format!(
-            "{}\n{}",
-            strings.question,
-            (strings.headline)(status.code.verdict())
-        );
-        write_details(&mut text, strings, status);
-        text
+        match &*self.latest.borrow() {
+            Ok(fetched) => text::status(lang, &fetched.status),
+            Err(_) => replies(lang).not_known_yet.to_owned(),
+        }
     }
 }
 
