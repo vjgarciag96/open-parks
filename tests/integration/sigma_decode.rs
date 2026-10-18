@@ -1,8 +1,7 @@
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::sigma::{self, DecodeError};
 
-mod support;
-use support::fixtures::fixture;
+use crate::support::fixtures::fixture;
 
 #[test]
 fn open_park_decodes_with_its_date_and_no_other_details() {

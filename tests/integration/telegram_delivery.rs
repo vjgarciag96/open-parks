@@ -8,9 +8,8 @@ use open_parks::strings::Lang;
 use open_parks::telegram::{self, BotToken, Broadcast, ChatId, Pace, Subscriber, Subscribers};
 use tempfile::TempDir;
 
-mod support;
-use support::fake_telegram::{FakeTelegram, Sent, TOKEN};
-use support::timeouts::GENEROUS_TIMEOUT;
+use crate::support::fake_telegram::{FakeTelegram, Sent, TOKEN};
+use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 const FAST: Pace = Pace {
     interval: Duration::ZERO,

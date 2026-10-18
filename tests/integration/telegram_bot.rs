@@ -11,9 +11,8 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 use tokio::sync::watch;
 
-mod support;
-use support::fake_telegram::{FakeTelegram, ProfileCall, Sent, TOKEN};
-use support::timeouts::GENEROUS_TIMEOUT;
+use crate::support::fake_telegram::{FakeTelegram, ProfileCall, Sent, TOKEN};
+use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
 const USERNAME: &str = "RetiroAbiertoBot";
