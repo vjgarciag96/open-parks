@@ -7,9 +7,9 @@ use tokio::time::Instant;
 
 use super::{ChatId, Client, RequestError, Subscriber, Subscribers, write_details};
 use crate::error::with_sources;
+use crate::lang::Lang;
 use crate::notifier::{Change, Channel, Notification};
 use crate::public_url::PublicUrl;
-use crate::strings::Lang;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pace {
@@ -256,7 +256,7 @@ fn notice(notification: &Notification, lang: Lang, public_url: Option<&PublicUrl
     write_details(&mut text, strings, status);
     if let Some(public_url) = public_url {
         text.push_str("\n\n");
-        text.push_str(&public_url.of(strings.path));
+        text.push_str(&public_url.of(lang.path()));
     }
     text
 }

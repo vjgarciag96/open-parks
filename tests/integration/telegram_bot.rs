@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use open_parks::database::Database;
+use open_parks::lang::Lang;
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma::FetchError;
-use open_parks::strings::Lang;
 use open_parks::telegram::{self, BotToken, ChatId, Subscriber, Subscribers};
 use serde_json::{Value, json};
 use tempfile::TempDir;
