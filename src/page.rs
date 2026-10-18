@@ -7,7 +7,6 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use reqwest::Url;
 use tokio::sync::watch;
 
 use crate::api::{to_the_second, upstream_failure_status};
@@ -15,6 +14,7 @@ use crate::clock::Clock;
 use crate::headline::{Alerts, Headline};
 use crate::park_status::{ParkStatus, Verdict};
 use crate::poller::{Fetched, Latest};
+use crate::public_url::PublicUrl;
 use crate::schedule;
 use crate::strings::{Age, Lang, Strings};
 
@@ -29,34 +29,11 @@ const LONG_ANSWER_AFTER: usize = 12;
 
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 
-#[derive(Debug, Clone)]
-pub struct PublicUrl(Url);
-
-impl PublicUrl {
-    pub fn new(url: Url) -> Option<PublicUrl> {
-        let origin = matches!(url.scheme(), "http" | "https")
-            && url.has_host()
-            && url.username().is_empty()
-            && url.password().is_none()
-            && url.path() == "/"
-            && url.query().is_none()
-            && url.fragment().is_none();
-        origin.then_some(PublicUrl(url))
-    }
-
-    fn of(&self, path: &str) -> String {
-        self.0
-            .join(path)
-            .expect("an HTTP(S) origin joins any absolute path")
-            .into()
-    }
-
-    fn alternates(&self) -> impl Iterator<Item = (&'static str, String)> {
-        Lang::ALL
-            .into_iter()
-            .map(|lang| (lang.strings().code, self.of(lang.strings().path)))
-            .chain([("x-default", self.of("/"))])
-    }
+fn alternates(public_url: &PublicUrl) -> impl Iterator<Item = (&'static str, String)> {
+    Lang::ALL
+        .into_iter()
+        .map(|lang| (lang.strings().code, public_url.of(lang.strings().path)))
+        .chain([("x-default", public_url.of("/"))])
 }
 
 struct Site {
@@ -115,8 +92,7 @@ fn sitemap_xml(site: &Site) -> Response {
     let Some(public_url) = &site.public_url else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let alternates: String = public_url
-        .alternates()
+    let alternates: String = alternates(public_url)
         .map(|(hreflang, href)| {
             format!(r#"<xhtml:link rel="alternate" hreflang="{hreflang}" href="{href}"/>"#)
         })
@@ -320,7 +296,7 @@ fn render(
                 meta name="description" content=(strings.description);
                 @if let Some(public_url) = &site.public_url {
                     link rel="canonical" href=(public_url.of(strings.path));
-                    @for (hreflang, href) in public_url.alternates() {
+                    @for (hreflang, href) in alternates(public_url) {
                         link rel="alternate" hreflang=(hreflang) href=(href);
                     }
                     meta property="og:url" content=(public_url.of(strings.path));

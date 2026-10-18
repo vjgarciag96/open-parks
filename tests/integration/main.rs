@@ -8,6 +8,7 @@ mod notifier;
 mod page;
 mod park_status;
 mod poller;
+mod public_url;
 mod schedule;
 mod server;
 mod sigma_client;

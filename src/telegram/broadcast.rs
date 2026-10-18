@@ -8,9 +8,8 @@ use tokio::time::Instant;
 use super::{ChatId, Client, RequestError, Subscriber, Subscribers, write_details};
 use crate::notifier::{Change, Channel, Notification};
 use crate::poller::with_sources;
+use crate::public_url::PublicUrl;
 use crate::strings::Lang;
-
-const SITE_URL: &str = "https://retiroabierto.duckdns.org";
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pace {
@@ -34,16 +33,24 @@ pub struct Broadcast {
     client: Client,
     subscribers: Subscribers,
     pace: Pace,
+    /// Where each notice links to, if anywhere.
+    public_url: Option<PublicUrl>,
     /// The earliest the next send may go, across notifications.
     next_send: Instant,
 }
 
 impl Broadcast {
-    pub fn new(client: Client, subscribers: Subscribers, pace: Pace) -> Self {
+    pub fn new(
+        client: Client,
+        subscribers: Subscribers,
+        pace: Pace,
+        public_url: Option<PublicUrl>,
+    ) -> Self {
         Self {
             client,
             subscribers,
             pace,
+            public_url,
             next_send: Instant::now(),
         }
     }
@@ -148,7 +155,11 @@ impl Channel for Broadcast {
             if delivered.contains(&pending.subscriber.chat) {
                 continue;
             }
-            let text = notice(&notification, pending.subscriber.lang);
+            let text = notice(
+                &notification,
+                pending.subscriber.lang,
+                self.public_url.as_ref(),
+            );
             let result = self
                 .deliver(&mut pending.subscriber, &text, &delivered)
                 .await;
@@ -234,7 +245,7 @@ impl PartialEq for Pending {
 
 impl Eq for Pending {}
 
-fn notice(notification: &Notification, lang: Lang) -> String {
+fn notice(notification: &Notification, lang: Lang, public_url: Option<&PublicUrl>) -> String {
     let strings = lang.strings();
     let status = &notification.status;
     let mut text = format!(
@@ -243,9 +254,10 @@ fn notice(notification: &Notification, lang: Lang) -> String {
         (strings.headline)(notification.new)
     );
     write_details(&mut text, strings, status);
-    text.push_str("\n\n");
-    text.push_str(SITE_URL);
-    text.push_str(strings.path);
+    if let Some(public_url) = public_url {
+        text.push_str("\n\n");
+        text.push_str(&public_url.of(strings.path));
+    }
     text
 }
 
