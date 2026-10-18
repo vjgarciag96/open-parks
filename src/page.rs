@@ -9,7 +9,6 @@ use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tokio::sync::watch;
 
-use crate::api::{to_the_second, upstream_failure_status};
 use crate::clock::Clock;
 use crate::headline::{Alerts, Headline};
 use crate::park_status::{ParkStatus, Verdict};
@@ -207,7 +206,6 @@ fn retiro_status(
             .into_response()
         }
         Err(error) => {
-            let (status, _) = upstream_failure_status(error);
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
             let page = render(
                 strings,
@@ -217,7 +215,7 @@ fn retiro_status(
                 tone(Alerts::Unchecked),
                 html! {},
             );
-            (status, page).into_response()
+            (error.gateway_status(), page).into_response()
         }
     }
 }
@@ -248,7 +246,7 @@ fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
             span.dot aria-hidden="true" {}
             span {
                 (strings.updated)
-                time datetime=(to_the_second(fetched.fetched_at)) { ((strings.ago)(Age::of(elapsed))) }
+                time datetime=(fetched.fetched_at_to_the_second()) { ((strings.ago)(Age::of(elapsed))) }
             }
         }
         @if stale {

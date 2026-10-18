@@ -64,6 +64,19 @@ pub enum FetchError {
     Decode(#[from] DecodeError),
 }
 
+impl FetchError {
+    /// What a gateway answers with when SIGMA fails this way.
+    pub(crate) fn gateway_status(&self) -> StatusCode {
+        match self {
+            FetchError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+            FetchError::Transport(_)
+            | FetchError::HttpStatus(_)
+            | FetchError::BodyTooLarge
+            | FetchError::Decode(_) => StatusCode::BAD_GATEWAY,
+        }
+    }
+}
+
 impl From<reqwest::Error> for FetchError {
     fn from(error: reqwest::Error) -> Self {
         if error.is_timeout() {
