@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use crate::http;
 
 const API_URL: &str = "https://api.telegram.org";
-const TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone)]
@@ -45,9 +44,12 @@ pub struct Client {
 }
 
 impl Client {
+    /// What `live` waits for each request.
+    pub const TIMEOUT: Duration = Duration::from_secs(10);
+
     pub fn live(token: BotToken) -> Result<Self, reqwest::Error> {
         let api_url = Url::parse(API_URL).expect("API_URL is valid");
-        Self::new(api_url, token, TIMEOUT)
+        Self::new(api_url, token, Self::TIMEOUT)
     }
 
     pub fn new(api_url: Url, token: BotToken, timeout: Duration) -> Result<Self, reqwest::Error> {
