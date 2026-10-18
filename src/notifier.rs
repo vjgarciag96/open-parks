@@ -1,4 +1,5 @@
 use tokio::sync::{mpsc, watch};
+use tokio::task::JoinHandle;
 
 use crate::database::DatabaseError;
 use crate::error::with_sources;
@@ -15,7 +16,7 @@ pub trait Channel: Send + 'static {
 
 #[derive(Default)]
 pub struct Channels {
-    queues: Vec<mpsc::UnboundedSender<Notification>>,
+    queues: Vec<(mpsc::UnboundedSender<Notification>, JoinHandle<()>)>,
 }
 
 impl Channels {
@@ -25,32 +26,42 @@ impl Channels {
 
     pub fn with(mut self, mut channel: impl Channel) -> Self {
         let (queue, mut queued) = mpsc::unbounded_channel();
-        tokio::spawn(async move {
+        let sending = tokio::spawn(async move {
             while let Some(notification) = queued.recv().await {
                 channel.send(notification).await;
             }
         });
-        self.queues.push(queue);
+        self.queues.push((queue, sending));
         self
     }
 
     fn send(&self, notification: &Notification) {
-        for queue in &self.queues {
+        for (queue, _) in &self.queues {
             let _ = queue.send(notification.clone());
+        }
+    }
+
+    /// Waits for each channel to send what it's been given.
+    async fn close(self) {
+        for (queue, sending) in self.queues {
+            drop(queue);
+            let _ = sending.await;
         }
     }
 }
 
+/// Notifies until the status's sender is dropped, then finishes once every
+/// channel has sent what it was given.
 pub async fn start(
     last_status: LastStatus,
     mut latest: watch::Receiver<Latest>,
     channels: Channels,
-) -> Result<(), DatabaseError> {
+) -> Result<JoinHandle<()>, DatabaseError> {
     let mut baseline = last_status.code().await?;
     let mut stored = baseline;
     // The status already published counts as a change from the stored one.
     latest.mark_changed();
-    tokio::spawn(async move {
+    Ok(tokio::spawn(async move {
         while latest.changed().await.is_ok() {
             let (code, notification) = {
                 let latest = latest.borrow_and_update();
@@ -72,8 +83,8 @@ pub async fn start(
                 }
             }
         }
-    });
-    Ok(())
+        channels.close().await;
+    }))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

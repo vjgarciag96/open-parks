@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 use super::{
     BotCommand, ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers,
@@ -14,12 +15,13 @@ use crate::poller::Latest;
 const LONG_POLL: Duration = Duration::from_secs(30);
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
+/// Answers commands until the task is aborted.
 pub fn start(
     client: Client,
     username: String,
     subscribers: Subscribers,
     latest: watch::Receiver<Latest>,
-) {
+) -> JoinHandle<()> {
     tokio::spawn(introduce(client.clone()));
     tokio::spawn(async move {
         let bot = Bot {
@@ -45,7 +47,7 @@ pub fn start(
                 }
             }
         }
-    });
+    })
 }
 
 async fn introduce(client: Client) {
