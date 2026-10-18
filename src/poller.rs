@@ -1,10 +1,10 @@
-use std::error::Error;
 use std::time::Duration;
 
-use jiff::Timestamp;
+use jiff::{RoundMode, Timestamp, TimestampRound, Unit};
 use tokio::sync::watch;
 
 use crate::clock::Clock;
+use crate::error::with_sources;
 use crate::park_status::ParkStatus;
 use crate::sigma::{self, FetchError};
 
@@ -15,6 +15,19 @@ pub type Latest = Result<Fetched, FetchError>;
 pub struct Fetched {
     pub status: ParkStatus,
     pub fetched_at: Timestamp,
+}
+
+impl Fetched {
+    /// When it was fetched, to the second, as the API and the page say.
+    pub(crate) fn fetched_at_to_the_second(&self) -> Timestamp {
+        self.fetched_at
+            .round(
+                TimestampRound::new()
+                    .smallest(Unit::Second)
+                    .mode(RoundMode::Floor),
+            )
+            .expect("flooring to a second stays within range")
+    }
 }
 
 pub async fn start(
@@ -51,15 +64,4 @@ async fn fetch(sigma: &sigma::Client, clock: &impl Clock) -> Latest {
         eprintln!("fetching Retiro's status: {}", with_sources(error));
     }
     latest
-}
-
-pub(crate) fn with_sources(error: &dyn Error) -> String {
-    let mut message = error.to_string();
-    let mut source = error.source();
-    while let Some(error) = source {
-        message.push_str(": ");
-        message.push_str(&error.to_string());
-        source = error.source();
-    }
-    message
 }
