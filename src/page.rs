@@ -42,7 +42,7 @@ struct Site {
 }
 
 #[derive(Clone)]
-struct Status {
+struct PageState {
     latest: watch::Receiver<Latest>,
     clock: Arc<dyn Clock>,
     site: Arc<Site>,
@@ -63,14 +63,14 @@ pub fn router(
         .route("/en", get(async |latest| retiro_status(latest, Lang::En)))
         .route(
             "/robots.txt",
-            get(async |State(status): State<Status>| robots_txt(&status.site)),
+            get(async |State(state): State<PageState>| robots_txt(&state.site)),
         )
         .route(
             "/sitemap.xml",
-            get(async |State(status): State<Status>| sitemap_xml(&status.site)),
+            get(async |State(state): State<PageState>| sitemap_xml(&state.site)),
         )
         .route("/favicon.svg", get(async || favicon()))
-        .with_state(Status {
+        .with_state(PageState {
             latest,
             clock: Arc::new(clock),
             site: Arc::new(Site {
@@ -181,11 +181,11 @@ fn quality(params: &str) -> Option<f32> {
 }
 
 fn retiro_status(
-    State(Status {
+    State(PageState {
         latest,
         clock,
         site,
-    }): State<Status>,
+    }): State<PageState>,
     lang: Lang,
 ) -> Response {
     let strings = lang.strings();
