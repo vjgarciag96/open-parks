@@ -13,7 +13,7 @@ use tokio::sync::watch;
 use crate::api::{to_the_second, upstream_failure_status};
 use crate::clock::Clock;
 use crate::headline::{Alerts, Headline};
-use crate::park_status::ParkStatus;
+use crate::park_status::{ParkStatus, Verdict};
 use crate::poller::{Fetched, Latest};
 use crate::schedule;
 use crate::strings::{Age, Lang, Strings};
@@ -23,6 +23,9 @@ const TELEGRAM_LOGO: &str = include_str!("page/telegram_logo.svg");
 const FAVICON: &str = include_str!("page/favicon.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
+
+const WIDE_AFTER: usize = 32;
+const LONG_ANSWER_AFTER: usize = 12;
 
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 
@@ -222,6 +225,7 @@ fn retiro_status(
                 other,
                 &site,
                 &headline,
+                tone(alerts),
                 details(strings, fetched, now),
             )
             .into_response()
@@ -229,21 +233,49 @@ fn retiro_status(
         Err(error) => {
             let (status, _) = upstream_failure_status(error);
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
-            let page = render(strings, other, &site, &headline, html! {});
+            let page = render(
+                strings,
+                other,
+                &site,
+                &headline,
+                tone(Alerts::Unchecked),
+                html! {},
+            );
             (status, page).into_response()
         }
     }
 }
 
+struct Tone {
+    class: &'static str,
+    icon: &'static str,
+}
+
+fn tone(alerts: Alerts) -> Tone {
+    let (class, icon) = match alerts {
+        Alerts::Checked(Verdict::Open) => ("ok", "✓"),
+        Alerts::Checked(Verdict::OpenWithRestrictions | Verdict::OpenStayNotAdvised) => {
+            ("warn", "!")
+        }
+        Alerts::Checked(Verdict::ClosureForecast | Verdict::Closed) => ("danger", "!"),
+        Alerts::Checked(Verdict::Unknown) | Alerts::Unchecked => ("neutral", "?"),
+    };
+    Tone { class, icon }
+}
+
 fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
     let elapsed = now.duration_since(fetched.fetched_at);
+    let stale = elapsed >= STALE_AFTER;
     html! {
         (status_details(strings, &fetched.status))
-        p.updated {
-            (strings.updated)
-            time datetime=(to_the_second(fetched.fetched_at)) { ((strings.ago)(Age::of(elapsed))) }
+        p.updated.stale[stale] {
+            span.dot aria-hidden="true" {}
+            span {
+                (strings.updated)
+                time datetime=(to_the_second(fetched.fetched_at)) { ((strings.ago)(Age::of(elapsed))) }
+            }
         }
-        @if elapsed >= STALE_AFTER {
+        @if stale {
             p.stale { (strings.stale) }
         }
     }
@@ -255,8 +287,10 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
         @if rows.peek().is_some() {
             dl {
                 @for (term, description) in rows {
-                    dt { (term) }
-                    dd { (description) }
+                    div.row.wide[description.chars().count() > WIDE_AFTER] {
+                        dt { (term) }
+                        dd { (description) }
+                    }
                 }
             }
         }
@@ -268,14 +302,20 @@ fn render(
     other: &Strings,
     site: &Site,
     headline: &Headline,
+    tone: Tone,
     details: Markup,
 ) -> Markup {
+    let languages = Lang::ALL.map(Lang::strings);
     html! {
         (DOCTYPE)
         html lang=(strings.code) {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
+                // The theme colours are page.css's backgrounds.
+                meta name="color-scheme" content="light dark";
+                meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)";
+                meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)";
                 title { (strings.title) }
                 meta name="description" content=(strings.description);
                 @if let Some(public_url) = &site.public_url {
@@ -295,29 +335,38 @@ fn render(
             }
             body {
                 nav {
-                    a href=(other.path) hreflang=(other.code) lang=(other.code) {
-                        (other.name)
+                    @for language in languages {
+                        @if language.code == strings.code {
+                            span aria-current="page" { (language.name) }
+                        } @else {
+                            a href=(language.path) hreflang=(language.code) lang=(language.code) {
+                                (language.name)
+                            }
+                        }
                     }
                 }
                 main {
-                    h1 {
+                    h1.long[headline.answer.chars().count() > LONG_ANSWER_AFTER] {
                         span.question { (strings.question) }
                         " "
                         (headline.answer)
                     }
+                    @if let Some(schedule) = &headline.schedule {
+                        p.now { (schedule) }
+                    }
                     section.alerts {
                         h2 { (strings.alerts) }
-                        p.alert { (headline.alert) }
+                        p.alert.(tone.class) {
+                            span.icon aria-hidden="true" { (tone.icon) }
+                            (headline.alert)
+                        }
                         (details)
                     }
                     section.schedule {
                         h2 { (strings.opening_hours) }
-                        @if let Some(schedule) = &headline.schedule {
-                            p.now { (schedule) }
-                        }
                         table.opening-hours {
                             @for (months, hours) in strings.seasons {
-                                tr {
+                                tr.row {
                                     th scope="row" { (months) }
                                     td { (hours) }
                                 }

@@ -46,7 +46,8 @@ impl Headline {
             Schedule::Open { closes_at } => Some((strings.closes_at)(closes_at.time())),
             Schedule::Closed { .. } if closure_ahead => Some(strings.closed_by_schedule.to_owned()),
             Schedule::Closed { opens_at } => Some(format!(
-                "{} · {}",
+                // Non-breaking, so the dot never starts a line.
+                "{}\u{a0}· {}",
                 strings.closed_by_schedule,
                 (strings.opens_at)(opens_at.time())
             )),
