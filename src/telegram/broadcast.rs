@@ -6,8 +6,8 @@ use reqwest::StatusCode;
 use tokio::time::Instant;
 
 use super::{ChatId, Client, RequestError, Subscriber, Subscribers, write_details};
+use crate::error::with_sources;
 use crate::notifier::{Change, Channel, Notification};
-use crate::poller::with_sources;
 use crate::public_url::PublicUrl;
 use crate::strings::Lang;
 

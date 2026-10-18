@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use jiff::{RoundMode, Timestamp, TimestampRound, Unit, Zoned};
+use jiff::{Timestamp, Zoned};
 use serde::{Serialize, Serializer};
 use tokio::sync::watch;
 
@@ -34,18 +33,18 @@ fn retiro_status(latest: watch::Receiver<Latest>, now: Timestamp) -> Response {
 }
 
 fn upstream_failure(error: &FetchError, schedule: ScheduleResponse) -> Response {
-    let (status, error) = upstream_failure_status(error);
-    (status, Json(ErrorResponse { error, schedule })).into_response()
-}
-
-pub(crate) fn upstream_failure_status(error: &FetchError) -> (StatusCode, ErrorCode) {
-    match error {
-        FetchError::Timeout => (StatusCode::GATEWAY_TIMEOUT, ErrorCode::UpstreamTimeout),
+    let code = match error {
+        FetchError::Timeout => ErrorCode::UpstreamTimeout,
         FetchError::Transport(_)
         | FetchError::HttpStatus(_)
         | FetchError::BodyTooLarge
-        | FetchError::Decode(_) => (StatusCode::BAD_GATEWAY, ErrorCode::UpstreamError),
-    }
+        | FetchError::Decode(_) => ErrorCode::UpstreamError,
+    };
+    let response = ErrorResponse {
+        error: code,
+        schedule,
+    };
+    (error.gateway_status(), Json(response)).into_response()
 }
 
 #[derive(Serialize)]
@@ -61,7 +60,8 @@ struct StatusResponse<'a> {
 }
 
 impl<'a> StatusResponse<'a> {
-    fn new(Fetched { status, fetched_at }: &'a Fetched, schedule: ScheduleResponse) -> Self {
+    fn new(fetched: &'a Fetched, schedule: ScheduleResponse) -> Self {
+        let status = &fetched.status;
         StatusResponse {
             code: status.code,
             verdict: status.code.verdict(),
@@ -69,7 +69,7 @@ impl<'a> StatusResponse<'a> {
             hours: status.hours.as_deref(),
             reopening: status.reopening,
             notes: status.notes.as_deref(),
-            fetched_at: to_the_second(*fetched_at),
+            fetched_at: fetched.fetched_at_to_the_second(),
             schedule,
         }
     }
@@ -115,17 +115,7 @@ struct ErrorResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ErrorCode {
+enum ErrorCode {
     UpstreamTimeout,
     UpstreamError,
-}
-
-pub(crate) fn to_the_second(timestamp: Timestamp) -> Timestamp {
-    timestamp
-        .round(
-            TimestampRound::new()
-                .smallest(Unit::Second)
-                .mode(RoundMode::Floor),
-        )
-        .expect("flooring to a second stays within range")
 }

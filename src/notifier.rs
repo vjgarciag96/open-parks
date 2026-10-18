@@ -1,8 +1,9 @@
 use tokio::sync::{mpsc, watch};
 
 use crate::database::DatabaseError;
+use crate::error::with_sources;
 use crate::park_status::{AlertCode, ParkStatus, Verdict};
-use crate::poller::{Latest, with_sources};
+use crate::poller::Latest;
 
 mod last_status;
 pub use last_status::LastStatus;

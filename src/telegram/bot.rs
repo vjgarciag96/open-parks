@@ -7,7 +7,8 @@ use super::{
     UpdateKind, User, write_details,
 };
 use crate::database::DatabaseError;
-use crate::poller::{Latest, with_sources};
+use crate::error::with_sources;
+use crate::poller::Latest;
 use crate::strings::Lang;
 
 const LONG_POLL: Duration = Duration::from_secs(30);
