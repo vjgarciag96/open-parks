@@ -201,13 +201,8 @@ impl Client {
             .send()
             .await?;
         let http_status = response.status();
-        let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await? {
-            if body.len() + chunk.len() > MAX_BODY_BYTES {
-                return Err(RequestError::BodyTooLarge);
-            }
-            body.extend_from_slice(&chunk);
-        }
+        let body =
+            http::read_body(&mut response, MAX_BODY_BYTES, RequestError::BodyTooLarge).await?;
         let Ok(reply) = serde_json::from_slice::<Reply>(&body) else {
             return Err(RequestError::HttpStatus(http_status));
         };

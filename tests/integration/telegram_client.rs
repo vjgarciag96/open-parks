@@ -360,6 +360,20 @@ async fn an_error_page_that_isnt_telegrams_json_is_an_http_status_error() {
 }
 
 #[tokio::test]
+async fn an_oversized_reply_is_an_error() {
+    let url = serving_any_method(post(|| async { " ".repeat(8 * 1024 * 1024 + 1) })).await;
+
+    let result = client(url, GENEROUS_TIMEOUT)
+        .send_message(ChatId(42), "Retiro is closed")
+        .await;
+
+    assert!(
+        matches!(result, Err(RequestError::BodyTooLarge)),
+        "got {result:?}"
+    );
+}
+
+#[tokio::test]
 async fn a_result_that_doesnt_decode_is_malformed() {
     let url = serving_any_method(post(|| async {
         Json(json!({ "ok": true, "result": { "updates": [] } }))
