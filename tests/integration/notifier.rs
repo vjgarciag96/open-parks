@@ -10,9 +10,8 @@ use open_parks::sigma::{self, FetchError};
 use tempfile::TempDir;
 use tokio::sync::watch;
 
-mod support;
-use support::fixtures::fixture;
-use support::timeouts::GENEROUS_TIMEOUT;
+use crate::support::fixtures::fixture;
+use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
 

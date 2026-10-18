@@ -12,10 +12,9 @@ use reqwest::Url;
 use tempfile::TempDir;
 use tokio::sync::{Semaphore, mpsc, watch};
 
-mod support;
-use support::fake_sigma::{json, serving};
-use support::fixtures::fixture;
-use support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
+use crate::support::fake_sigma::{json, serving};
+use crate::support::fixtures::fixture;
+use crate::support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 const OFTEN: Duration = Duration::from_millis(10);
 

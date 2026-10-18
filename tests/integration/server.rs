@@ -6,9 +6,8 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 use serde_json::{Value, json};
 
-mod support;
-use support::fake_sigma::serving_json;
-use support::fixtures::fixture;
+use crate::support::fake_sigma::serving_json;
+use crate::support::fixtures::fixture;
 
 struct Server(Child);
 

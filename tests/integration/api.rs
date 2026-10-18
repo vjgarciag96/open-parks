@@ -14,10 +14,9 @@ use serde_json::{Value, json};
 use tokio::sync::watch;
 use tower::ServiceExt;
 
-mod support;
-use support::fake_sigma::{serving, serving_json, url_for};
-use support::fixtures::fixture;
-use support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
+use crate::support::fake_sigma::{serving, serving_json, url_for};
+use crate::support::fixtures::fixture;
+use crate::support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 const RETIRO_STATUS: &str = "/api/v1/parks/retiro/status";
 const NOW: &str = "2026-10-11T09:30:00Z";

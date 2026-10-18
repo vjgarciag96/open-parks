@@ -1,8 +1,8 @@
 # SIGMA fixtures
 
 Responses from the `ALERTAS_PARQUES` layer's `query` endpoint, used as golden
-inputs for `sigma::decode` and served by the fake upstream in
-`tests/sigma_client.rs`.
+inputs for `sigma::decode` and served by the fake SIGMA in
+`tests/integration/sigma_client.rs`.
 
 ## Provenance
 
