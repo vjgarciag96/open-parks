@@ -20,3 +20,19 @@ fn tls_config() -> rustls::ClientConfig {
         .with_root_certificates(roots)
         .with_no_client_auth()
 }
+
+/// Reads the whole body, or returns `too_large` once it's over `max_bytes`.
+pub(crate) async fn read_body<E: From<reqwest::Error>>(
+    response: &mut reqwest::Response,
+    max_bytes: usize,
+    too_large: E,
+) -> Result<Vec<u8>, E> {
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if body.len() + chunk.len() > max_bytes {
+            return Err(too_large);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
