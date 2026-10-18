@@ -25,18 +25,59 @@ pub fn retiro(now: Timestamp) -> Schedule {
 }
 
 // Main park hours, from https://www.madrid.es/portales/munimadrid/es/Inicio/El-Ayuntamiento/Parques-y-jardines/Patrimonio-Verde/Parques-en-Madrid/Jardines-de-El-Buen-Retiro/?vgnextfmt=default&vgnextoid=499561945d9ec210VgnVCM2000000c205a0aRCRD&vgnextchannel=38bb1914e7d4e210VgnVCM1000000b205a0aRCRD
+pub(crate) const SEASONS: [Season; 2] = [
+    Season {
+        first_month: 10,
+        last_month: 3,
+        opens: 6,
+        closes: 22,
+    },
+    Season {
+        first_month: 4,
+        last_month: 9,
+        opens: 6,
+        closes: 24,
+    },
+];
+
+/// The hours for the months from `first_month` to `last_month`, which may
+/// run across the new year.
+pub(crate) struct Season {
+    pub(crate) first_month: i8,
+    pub(crate) last_month: i8,
+    pub(crate) opens: i8,
+    /// 24 is midnight, at the end of the day.
+    pub(crate) closes: i8,
+}
+
+impl Season {
+    fn of(day: Date) -> &'static Season {
+        SEASONS
+            .iter()
+            .find(|season| season.contains(day.month()))
+            .expect("the seasons cover every month")
+    }
+
+    fn contains(&self, month: i8) -> bool {
+        if self.first_month <= self.last_month {
+            (self.first_month..=self.last_month).contains(&month)
+        } else {
+            month >= self.first_month || month <= self.last_month
+        }
+    }
+}
+
 fn opening(day: Date) -> Zoned {
-    madrid_time(day, 6)
+    madrid_time(day, Season::of(day).opens)
 }
 
 fn closing(day: Date) -> Zoned {
-    if (4..=9).contains(&day.month()) {
-        madrid_time(
+    match Season::of(day).closes {
+        24 => madrid_time(
             day.tomorrow().expect("the park's hours are within range"),
             0,
-        )
-    } else {
-        madrid_time(day, 22)
+        ),
+        closes => madrid_time(day, closes),
     }
 }
 
