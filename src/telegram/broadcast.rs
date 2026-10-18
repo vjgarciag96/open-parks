@@ -5,10 +5,10 @@ use std::time::Duration;
 use reqwest::StatusCode;
 use tokio::time::Instant;
 
-use super::{ChatId, Client, RequestError, Subscriber, Subscribers, write_details};
+use super::text::notice;
+use super::{ChatId, Client, RequestError, Subscriber, Subscribers};
 use crate::error::with_sources;
-use crate::lang::Lang;
-use crate::notifier::{Change, Channel, Notification};
+use crate::notifier::{Channel, Notification};
 use crate::public_url::PublicUrl;
 
 #[derive(Debug, Clone, Copy)]
@@ -244,50 +244,3 @@ impl PartialEq for Pending {
 }
 
 impl Eq for Pending {}
-
-fn notice(notification: &Notification, lang: Lang, public_url: Option<&PublicUrl>) -> String {
-    let strings = lang.strings();
-    let status = &notification.status;
-    let mut text = format!(
-        "{}\n{}",
-        (notices(lang).lead)(notification.change()),
-        (strings.headline)(notification.new)
-    );
-    write_details(&mut text, strings, status);
-    if let Some(public_url) = public_url {
-        text.push_str("\n\n");
-        text.push_str(&public_url.of(lang.path()));
-    }
-    text
-}
-
-struct Notices {
-    lead: fn(Change) -> &'static str,
-}
-
-fn notices(lang: Lang) -> &'static Notices {
-    match lang {
-        Lang::Es => &ES,
-        Lang::En => &EN,
-    }
-}
-
-const ES: Notices = Notices {
-    lead: |change| match change {
-        Change::ClosureForecast => "Se prevé que el Retiro cierre.",
-        Change::Closure => "El Retiro ha cerrado.",
-        Change::Escalation => "El Retiro ha cerrado, como estaba previsto.",
-        Change::StillForecast => "El Retiro ya no está cerrado, pero sigue previsto que cierre.",
-        Change::Reopening => "El Retiro ha vuelto a abrir.",
-    },
-};
-
-const EN: Notices = Notices {
-    lead: |change| match change {
-        Change::ClosureForecast => "Retiro is expected to close.",
-        Change::Closure => "Retiro has closed.",
-        Change::Escalation => "Retiro has closed, as expected.",
-        Change::StillForecast => "Retiro is no longer closed, but is still expected to close.",
-        Change::Reopening => "Retiro has reopened.",
-    },
-};
