@@ -94,7 +94,7 @@ pub enum Change {
 impl Notification {
     pub fn change(&self) -> Change {
         match (self.old, self.new) {
-            (_, new) if !closure_or_forecast(new) => Change::Reopening,
+            (_, new) if !new.closure_or_forecast() => Change::Reopening,
             (Verdict::ClosureForecast, Verdict::Closed) => Change::Escalation,
             (_, Verdict::Closed) => Change::Closure,
             (Verdict::Closed, _) => Change::StillForecast,
@@ -110,7 +110,7 @@ pub fn notification(baseline: Option<AlertCode>, status: &ParkStatus) -> Option<
         return None;
     }
     let new = status.code.verdict();
-    (old != new && (closure_or_forecast(old) || closure_or_forecast(new))).then(|| Notification {
+    (old != new && (old.closure_or_forecast() || new.closure_or_forecast())).then(|| Notification {
         old,
         new,
         status: status.clone(),
@@ -124,8 +124,4 @@ fn documented_status(latest: &Latest) -> Option<&ParkStatus> {
 
 fn documented(code: AlertCode) -> bool {
     !matches!(code, AlertCode::Unknown(_))
-}
-
-fn closure_or_forecast(verdict: Verdict) -> bool {
-    matches!(verdict, Verdict::ClosureForecast | Verdict::Closed)
 }

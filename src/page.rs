@@ -12,8 +12,10 @@ use tokio::sync::watch;
 
 use crate::api::{to_the_second, upstream_failure_status};
 use crate::clock::Clock;
+use crate::headline::{Alerts, Headline};
 use crate::park_status::ParkStatus;
 use crate::poller::{Fetched, Latest};
+use crate::schedule;
 use crate::strings::{Age, Lang, Strings};
 
 const STYLE: &str = include_str!("page/page.css");
@@ -209,21 +211,25 @@ fn retiro_status(
 ) -> Response {
     let strings = lang.strings();
     let other = lang.other().strings();
+    let now = clock.now();
+    let schedule = schedule::retiro(now);
     match &*latest.borrow() {
         Ok(fetched) => {
-            let answer = (strings.headline)(fetched.status.code.verdict());
+            let alerts = Alerts::Checked(fetched.status.code.verdict());
+            let headline = Headline::new(strings, alerts, &schedule);
             render(
                 strings,
                 other,
                 &site,
-                answer,
-                details(strings, fetched, clock.now()),
+                &headline,
+                details(strings, fetched, now),
             )
             .into_response()
         }
         Err(error) => {
             let (status, _) = upstream_failure_status(error);
-            let page = render(strings, other, &site, strings.upstream_failure, html! {});
+            let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
+            let page = render(strings, other, &site, &headline, html! {});
             (status, page).into_response()
         }
     }
@@ -261,7 +267,7 @@ fn render(
     strings: &Strings,
     other: &Strings,
     site: &Site,
-    answer: &str,
+    headline: &Headline,
     details: Markup,
 ) -> Markup {
     html! {
@@ -280,7 +286,7 @@ fn render(
                     meta property="og:url" content=(public_url.of(strings.path));
                 }
                 meta property="og:type" content="website";
-                meta property="og:title" content={ (strings.question) " " (answer) };
+                meta property="og:title" content={ (strings.question) " " (headline.preview) };
                 meta property="og:description" content=(strings.description);
                 meta property="og:locale" content=(strings.locale);
                 meta property="og:locale:alternate" content=(other.locale);
@@ -297,15 +303,24 @@ fn render(
                     h1 {
                         span.question { (strings.question) }
                         " "
-                        (answer)
+                        (headline.answer)
                     }
-                    (details)
-                    table.opening-hours {
-                        caption { (strings.opening_hours) }
-                        @for (months, hours) in strings.seasons {
-                            tr {
-                                th scope="row" { (months) }
-                                td { (hours) }
+                    section.alerts {
+                        h2 { (strings.alerts) }
+                        p.alert { (headline.alert) }
+                        (details)
+                    }
+                    section.schedule {
+                        h2 { (strings.opening_hours) }
+                        @if let Some(schedule) = &headline.schedule {
+                            p.now { (schedule) }
+                        }
+                        table.opening-hours {
+                            @for (months, hours) in strings.seasons {
+                                tr {
+                                    th scope="row" { (months) }
+                                    td { (hours) }
+                                }
                             }
                         }
                     }

@@ -121,7 +121,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
             message(
                 1,
                 "El Retiro ha cerrado.\n\
-                 Cerrado\n\n\
+                 Cerrado por alerta meteorológica\n\n\
                  Fechas: 13/10/2026\n\
                  Reapertura: Cuando terminen las inspecciones\n\
                  Observaciones: Viento fuerte\n\n\
@@ -130,7 +130,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
             message(
                 2,
                 "Retiro has closed.\n\
-                 Closed\n\n\
+                 Closed due to a weather alert\n\n\
                  Dates: 13/10/2026\n\
                  Reopening: Once inspections finish\n\
                  Notes: Viento fuerte\n\n\
@@ -169,7 +169,10 @@ async fn the_wording_tells_a_closure_forecast_an_escalation_and_a_reopening_apar
                 1,
                 &format!("Retiro is expected to close.\nClosure expected{link}")
             ),
-            message(1, &format!("Retiro has closed, as expected.\nClosed{link}")),
+            message(
+                1,
+                &format!("Retiro has closed, as expected.\nClosed due to a weather alert{link}")
+            ),
             message(
                 1,
                 &format!(
