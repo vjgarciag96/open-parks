@@ -7,6 +7,7 @@ pub mod notifier;
 pub mod page;
 pub mod park_status;
 pub mod poller;
+pub mod public_url;
 pub mod schedule;
 pub mod sigma;
 pub mod strings;

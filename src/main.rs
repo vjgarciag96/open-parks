@@ -5,6 +5,7 @@ use std::{env, io};
 use jiff::Timestamp;
 use open_parks::database::Database;
 use open_parks::notifier::{Channels, LastStatus};
+use open_parks::public_url::PublicUrl;
 use open_parks::telegram::{BotToken, Broadcast, Pace, Subscribers};
 use open_parks::{api, notifier, page, poller, sigma, telegram};
 use reqwest::Url;
@@ -31,7 +32,12 @@ async fn main() -> io::Result<()> {
         let mut channels = Channels::new();
         if let Some((client, username)) = telegram {
             let subscribers = Subscribers::new(database.clone());
-            let broadcast = Broadcast::new(client.clone(), subscribers.clone(), Pace::LIVE);
+            let broadcast = Broadcast::new(
+                client.clone(),
+                subscribers.clone(),
+                Pace::LIVE,
+                public_url.clone(),
+            );
             channels = channels.with(broadcast);
             telegram::start(client, username, subscribers, latest.clone());
         }
@@ -68,13 +74,13 @@ fn sigma_client() -> io::Result<sigma::Client> {
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
 }
 
-fn public_url() -> io::Result<Option<page::PublicUrl>> {
+fn public_url() -> io::Result<Option<PublicUrl>> {
     let Some(url) = env_var("OPEN_PARKS_PUBLIC_URL")? else {
         return Ok(None);
     };
     let url = Url::parse(&url)
         .map_err(|error| io::Error::other(format!("OPEN_PARKS_PUBLIC_URL: {error}")))?;
-    page::PublicUrl::new(url).map(Some).ok_or_else(|| {
+    PublicUrl::new(url).map(Some).ok_or_else(|| {
         io::Error::other(
             "OPEN_PARKS_PUBLIC_URL must be an HTTP(S) origin, such as https://example.org",
         )
