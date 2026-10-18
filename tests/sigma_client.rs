@@ -10,12 +10,10 @@ use open_parks::sigma::{self, DecodeError, FetchError};
 use reqwest::Url;
 use tokio::io::AsyncWriteExt;
 
-mod common;
-mod fake_upstream;
-mod timeouts;
-use common::fixture;
-use fake_upstream::{json, serving, serving_json, url_for};
-use timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
+mod support;
+use support::fake_sigma::{json, serving, serving_json, url_for};
+use support::fixtures::fixture;
+use support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 
 async fn recording_requests() -> (Url, Arc<Mutex<Option<Parts>>>) {
     let received = Arc::new(Mutex::new(None));
