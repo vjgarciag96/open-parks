@@ -200,7 +200,7 @@ async fn a_reopening_in_spanish_gives_the_hours() {
             1,
             "El Retiro ha vuelto a abrir.\n\
              Abierto\n\n\
-             Horario: de 14:00 a 20:00 h\n\n\
+             Horario de la incidencia: de 14:00 a 20:00 h\n\n\
              https://retiroabierto.duckdns.org/es"
         )]
     );

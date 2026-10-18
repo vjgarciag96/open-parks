@@ -43,8 +43,11 @@ pub(crate) struct Strings {
     pub(crate) question: &'static str,
     pub(crate) headline: fn(Verdict) -> &'static str,
     pub(crate) upstream_failure: &'static str,
+    pub(crate) opening_hours: &'static str,
+    // The seasons in `schedule::retiro`, which these have to follow.
+    pub(crate) seasons: [(&'static str, &'static str); 2],
     pub(crate) dates: &'static str,
-    pub(crate) hours: &'static str,
+    pub(crate) incident_hours: &'static str,
     pub(crate) reopening: &'static str,
     pub(crate) forecast: fn(ReopeningForecast) -> &'static str,
     pub(crate) notes: &'static str,
@@ -65,7 +68,7 @@ impl Strings {
     ) -> impl Iterator<Item = (&'static str, &'a str)> {
         [
             (self.dates, status.dates.as_deref()),
-            (self.hours, status.hours.as_deref()),
+            (self.incident_hours, status.hours.as_deref()),
             (self.reopening, status.reopening.map(self.forecast)),
             (self.notes, status.notes.as_deref()),
         ]
@@ -103,7 +106,7 @@ const ES: Strings = Strings {
     path: "/es",
     name: "Español",
     title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
-    description: "Consulta si el Parque del Retiro de Madrid está abierto, cerrado o con restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
+    description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
     question: "¿Está abierto el Retiro?",
     headline: |verdict| match verdict {
         Verdict::Open => "Abierto",
@@ -114,8 +117,13 @@ const ES: Strings = Strings {
         Verdict::Unknown => "Estado desconocido",
     },
     upstream_failure: "No hemos podido consultar el estado",
+    opening_hours: "Horario",
+    seasons: [
+        ("Octubre–Marzo", "6:00–22:00"),
+        ("Abril–Septiembre", "6:00–24:00"),
+    ],
     dates: "Fechas",
-    hours: "Horario",
+    incident_hours: "Horario de la incidencia",
     reopening: "Reapertura",
     forecast: |forecast| match forecast {
         ReopeningForecast::AfterInspections => "Cuando terminen las inspecciones",
@@ -147,7 +155,7 @@ const EN: Strings = Strings {
     path: "/en",
     name: "English",
     title: "Is Retiro Park open today? Live status, Madrid",
-    description: "Check whether Madrid’s Retiro Park is open, closed or restricted by a weather alert, with City Council data refreshed every minute.",
+    description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.",
     question: "Is Retiro Park open?",
     headline: |verdict| match verdict {
         Verdict::Open => "Open",
@@ -158,8 +166,13 @@ const EN: Strings = Strings {
         Verdict::Unknown => "Status unknown",
     },
     upstream_failure: "We couldn’t check the status",
+    opening_hours: "Hours",
+    seasons: [
+        ("October–March", "6:00–22:00"),
+        ("April–September", "6:00–midnight"),
+    ],
     dates: "Dates",
-    hours: "Hours",
+    incident_hours: "Incident hours",
     reopening: "Reopening",
     forecast: |forecast| match forecast {
         ReopeningForecast::AfterInspections => "Once inspections finish",

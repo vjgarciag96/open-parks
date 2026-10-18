@@ -71,6 +71,31 @@ dd {
   white-space: pre-line;
 }
 
+.opening-hours {
+  margin: 1.5rem auto 0;
+  font-size: 0.9rem;
+  border-collapse: collapse;
+}
+
+.opening-hours caption {
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+.opening-hours th {
+  padding-right: 1.5em;
+  font-weight: normal;
+  text-align: left;
+  color: #555;
+}
+
+.opening-hours td {
+  text-align: right;
+}
+
 .updated {
   margin-top: 1.5rem;
   font-size: 0.9rem;
