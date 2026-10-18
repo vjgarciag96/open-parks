@@ -27,7 +27,9 @@ async fn main() -> io::Result<()> {
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
     println!("listening on http://{}", listener.local_addr()?);
     let mut terminate = signal(SignalKind::terminate())?;
-    let latest = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
+    let (latest, poller) = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
+    let mut bot = None;
+    let mut notifier = None;
     if let Some(database) = database {
         let mut channels = Channels::new();
         if let Some((client, username)) = telegram {
@@ -39,11 +41,18 @@ async fn main() -> io::Result<()> {
                 public_url.clone(),
             );
             channels = channels.with(broadcast);
-            telegram::start(client, username, subscribers, latest.clone());
+            bot = Some(telegram::start(
+                client,
+                username,
+                subscribers,
+                latest.clone(),
+            ));
         }
-        notifier::start(LastStatus::new(database), latest.clone(), channels)
-            .await
-            .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?;
+        notifier = Some(
+            notifier::start(LastStatus::new(database), latest.clone(), channels)
+                .await
+                .map_err(|error| io::Error::other(format!("reading the last status: {error}")))?,
+        );
     }
     let app = api::router(latest.clone(), Timestamp::now).merge(page::router(
         latest,
@@ -58,7 +67,17 @@ async fn main() -> io::Result<()> {
                 _ = tokio::signal::ctrl_c() => {}
             }
         })
-        .await
+        .await?;
+    // With the poller stopped the status can't change again, so the
+    // notifier finishes once the notifications it already has are sent.
+    poller.abort();
+    if let Some(bot) = bot {
+        bot.abort();
+    }
+    if let Some(notifier) = notifier {
+        let _ = notifier.await;
+    }
+    Ok(())
 }
 
 fn sigma_client() -> io::Result<sigma::Client> {

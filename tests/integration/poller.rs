@@ -65,7 +65,7 @@ fn fetch_time() -> Timestamp {
 
 async fn start(url: Url, interval: Duration) -> watch::Receiver<Latest> {
     let client = sigma::Client::new(url, GENEROUS_TIMEOUT).unwrap();
-    poller::start(client, interval, fetch_time).await
+    poller::start(client, interval, fetch_time).await.0
 }
 
 async fn wait_for_code(latest: &mut watch::Receiver<Latest>, code: AlertCode) {
@@ -172,7 +172,7 @@ async fn requests_are_served_without_querying_sigma() {
 async fn polling_stops_once_nothing_reads_the_status() {
     let upstream = Upstream::start(Some(fixture("code_1_open.json"))).await;
     let client = sigma::Client::new(upstream.url.clone(), SHORT_TIMEOUT).unwrap();
-    let latest = poller::start(client, OFTEN, fetch_time).await;
+    let (latest, _) = poller::start(client, OFTEN, fetch_time).await;
 
     drop(latest);
     tokio::time::sleep(OFTEN + SHORT_TIMEOUT).await;
