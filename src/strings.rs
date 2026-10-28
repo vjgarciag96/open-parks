@@ -1,5 +1,5 @@
 use jiff::SignedDuration;
-use jiff::civil::Time;
+use jiff::civil::{Date, Time};
 
 use crate::lang::Lang;
 use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
@@ -40,6 +40,9 @@ pub(crate) struct Strings {
     pub(crate) forecast: fn(ReopeningForecast) -> &'static str,
     pub(crate) notes: &'static str,
     pub(crate) updated: &'static str,
+    /// When the status was fetched, in Madrid time, so it still reads right
+    /// when quoted later or elsewhere.
+    pub(crate) updated_at: fn(Date, Time) -> String,
     pub(crate) ago: fn(Age) -> String,
     pub(crate) stale: &'static str,
     pub(crate) telegram: &'static str,
@@ -73,6 +76,11 @@ impl Strings {
 
 fn hours_and_minutes(time: Time) -> String {
     format!("{:02}:{:02}", time.hour(), time.minute())
+}
+
+/// As SIGMA writes its dates, which the page shows too.
+fn day_month_year(date: Date) -> String {
+    format!("{:02}/{:02}/{}", date.day(), date.month(), date.year())
 }
 
 #[derive(Clone, Copy)]
@@ -156,7 +164,14 @@ const ES: Strings = Strings {
         ReopeningForecast::Unknown(_) => "Desconocida",
     },
     notes: "Observaciones",
-    updated: "Actualizado ",
+    updated: "Actualizado el ",
+    updated_at: |date, time| {
+        format!(
+            "{} a las {} (hora de Madrid)",
+            day_month_year(date),
+            hours_and_minutes(time)
+        )
+    },
     ago: |age| match age {
         Age::UnderAMinute => "hace menos de un minuto".to_owned(),
         Age::Minutes(1) => "hace 1 minuto".to_owned(),
@@ -236,6 +251,13 @@ const EN: Strings = Strings {
     },
     notes: "Notes",
     updated: "Updated ",
+    updated_at: |date, time| {
+        format!(
+            "{} at {} Madrid time",
+            day_month_year(date),
+            hours_and_minutes(time)
+        )
+    },
     ago: |age| match age {
         Age::UnderAMinute => "less than a minute ago".to_owned(),
         Age::Minutes(1) => "1 minute ago".to_owned(),

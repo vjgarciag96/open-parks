@@ -713,7 +713,7 @@ async fn a_status_without_details_shows_no_details_list() {
 }
 
 #[tokio::test]
-async fn the_page_says_how_long_ago_the_status_was_fetched() {
+async fn the_page_says_when_and_how_long_ago_the_status_was_fetched() {
     let cases = [
         ("2026-10-11T09:30:00Z", "hace menos de un minuto"),
         ("2026-10-11T09:30:59Z", "hace menos de un minuto"),
@@ -732,9 +732,35 @@ async fn the_page_says_how_long_ago_the_status_was_fetched() {
 
         assert!(
             body.contains(&format!(
-                r#"Actualizado <time datetime="2026-10-11T09:30:00Z">{ago}</time>"#
+                r#"Actualizado el <time datetime="2026-10-11T09:30:00Z">11/10/2026 a las 11:30 (hora de Madrid)</time>, <span class="ago">{ago}</span>"#,
             )),
             "now {now}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_fetch_time_is_in_madrid_time_whatever_the_season() {
+    let cases = [
+        // Summer time, two hours ahead of UTC.
+        ("2026-07-11T09:30:00Z", "11/07/2026 a las 11:30"),
+        // Winter time, one hour ahead.
+        ("2026-12-11T09:30:00Z", "11/12/2026 a las 10:30"),
+        // Already the next day, and year, in Madrid.
+        ("2026-12-31T23:30:00Z", "01/01/2027 a las 00:30"),
+    ];
+    for (fetched_at, expected) in cases {
+        let latest = Ok(Fetched {
+            status: sigma::decode(&fixture("code_1_open.json")).unwrap(),
+            fetched_at: fetched_at.parse().unwrap(),
+        });
+        let body = text_body(get_at(latest, fetched_at.parse().unwrap(), "/es").await).await;
+
+        assert!(
+            body.contains(&format!(
+                r#"<time datetime="{fetched_at}">{expected} (hora de Madrid)</time>"#
+            )),
+            "{fetched_at}: {body}"
         );
     }
 }
@@ -762,7 +788,11 @@ async fn the_status_details_are_shown_in_english() {
         "<dt>Dates</dt><dd>13/10/2026</dd>",
         "<dt>Reopening</dt><dd>See the notes</dd>",
         "<dt>Notes</dt><dd>El parque permanecerá cerrado hasta la retirada de las ramas caídas.</dd>",
-        r#"Updated <time datetime="2026-10-11T09:30:00Z">2 hours ago</time>"#,
+        concat!(
+            r#"Updated <time datetime="2026-10-11T09:30:00Z">11/10/2026 at 11:30 Madrid time</time>"#,
+            ", ",
+            r#"<span class="ago">2 hours ago</span>"#,
+        ),
         "This status may be out of date.",
     ] {
         assert!(body.contains(expected), "{expected}: {body}");
@@ -808,7 +838,7 @@ async fn the_parks_hours_follow_the_alerts() {
     let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
 
     assert!(
-        body.contains(r#"</time></span></p></section><section class="schedule">"#),
+        body.contains(r#"</span></p></section><section class="schedule">"#),
         "{body}"
     );
 }

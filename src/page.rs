@@ -244,13 +244,17 @@ fn tone(alerts: Alerts) -> Tone {
 fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
     let elapsed = now.duration_since(fetched.fetched_at);
     let stale = elapsed >= STALE_AFTER;
+    let fetched_at = fetched.fetched_at_to_the_second();
+    let in_madrid = fetched_at.to_zoned(schedule::madrid());
     html! {
         (status_details(strings, &fetched.status))
         p.updated.stale[stale] {
             span.dot aria-hidden="true" {}
             span {
                 (strings.updated)
-                time datetime=(fetched.fetched_at_to_the_second()) { ((strings.ago)(Age::of(elapsed))) }
+                time datetime=(fetched_at) { ((strings.updated_at)(in_madrid.date(), in_madrid.time())) }
+                ", "
+                span.ago { ((strings.ago)(Age::of(elapsed))) }
             }
         }
         @if stale {
