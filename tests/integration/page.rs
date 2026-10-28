@@ -1196,3 +1196,46 @@ async fn the_structured_data_has_no_url_without_a_public_url() {
 
     assert!(park.get("url").is_none(), "{park}");
 }
+
+#[tokio::test]
+async fn llms_txt_says_what_the_site_is_and_links_its_pages_and_api() {
+    let request = Request::get("/llms.txt").body(Body::empty()).unwrap();
+    let response = send_to(
+        fetched("code_1_open.json"),
+        FETCHED_AT.parse().unwrap(),
+        Some("retiro_abierto_bot"),
+        Some(PUBLIC_URL),
+        request,
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "text/plain; charset=utf-8"
+    );
+    let body = text_body(response).await;
+    assert!(body.starts_with("# Retiro Abierto\n\n> "), "{body}");
+    for expected in [
+        "- October–March: 6:00–22:00\n- April–September: 6:00–midnight\n",
+        "[Status page in English](https://retiro.example/en)",
+        "[Status page in Spanish](https://retiro.example/es)",
+        "[Status API](https://retiro.example/api/v1/parks/retiro/status)",
+        "[Telegram bot](https://t.me/retiro_abierto_bot)",
+        "[Madrid City Council's park closures page](https://www.madrid.es/",
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn llms_txt_links_relatively_without_a_public_url_and_skips_a_missing_bot() {
+    let body = text_body(get(fetched("code_1_open.json"), "/llms.txt").await).await;
+
+    assert!(body.contains("[Status page in English](/en)"), "{body}");
+    assert!(
+        body.contains("[Status API](/api/v1/parks/retiro/status)"),
+        "{body}"
+    );
+    assert!(!body.contains("Telegram"), "{body}");
+}

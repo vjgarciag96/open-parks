@@ -16,11 +16,13 @@ use crate::poller::{Fetched, Latest};
 use crate::schedule::{self, Schedule};
 use crate::sigma::FetchError;
 
+pub(crate) const RETIRO_STATUS_PATH: &str = "/api/v1/parks/retiro/status";
+
 pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
     let clock: Arc<dyn Clock> = Arc::new(clock);
     Router::new()
         .route(
-            "/api/v1/parks/retiro/status",
+            RETIRO_STATUS_PATH,
             get(async move |State(latest)| retiro_status(&latest, clock.now())),
         )
         .with_state(latest)
