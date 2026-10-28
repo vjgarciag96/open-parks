@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::http::{HeaderName, HeaderValue};
+use axum::middleware;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
@@ -22,6 +24,16 @@ pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
             get(async move |State(latest)| retiro_status(&latest, clock.now())),
         )
         .with_state(latest)
+        .layer(middleware::map_response(noindex))
+}
+
+// Crawlers may read the API, but its JSON isn't a page for search results.
+async fn noindex(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        HeaderName::from_static("x-robots-tag"),
+        HeaderValue::from_static("noindex"),
+    );
+    response
 }
 
 fn retiro_status(latest: &watch::Receiver<Latest>, now: Timestamp) -> Response {
