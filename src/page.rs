@@ -18,6 +18,8 @@ use crate::public_url::PublicUrl;
 use crate::schedule;
 use crate::strings::{Age, Strings};
 
+mod structured_data;
+
 const STYLE: &str = include_str!("../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
 const FAVICON: &str = include_str!("../assets/favicon.svg");
@@ -191,22 +193,33 @@ fn retiro_status(
     let strings = lang.strings();
     let now = clock.now();
     let schedule = schedule::retiro(now);
+    let today = now.to_zoned(schedule::madrid()).date();
+    let public_url = site.public_url.as_ref();
     match &*latest.borrow() {
         Ok(fetched) => {
             let alerts = Alerts::Checked(fetched.status.code.verdict());
             let headline = Headline::new(strings, alerts, &schedule);
+            let fetched_at = Some(fetched.fetched_at_to_the_second());
             render(
                 lang,
                 &site,
                 &headline,
                 tone(alerts),
                 details(strings, fetched, now),
+                structured_data::markup(lang, public_url, fetched_at, today),
             )
             .into_response()
         }
         Err(error) => {
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
-            let page = render(lang, &site, &headline, tone(Alerts::Unchecked), html! {});
+            let page = render(
+                lang,
+                &site,
+                &headline,
+                tone(Alerts::Unchecked),
+                html! {},
+                structured_data::markup(lang, public_url, None, today),
+            );
             (error.gateway_status(), page).into_response()
         }
     }
@@ -263,7 +276,14 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
     }
 }
 
-fn render(lang: Lang, site: &Site, headline: &Headline, tone: Tone, details: Markup) -> Markup {
+fn render(
+    lang: Lang,
+    site: &Site,
+    headline: &Headline,
+    tone: Tone,
+    details: Markup,
+    structured_data: Markup,
+) -> Markup {
     let strings = lang.strings();
     html! {
         (DOCTYPE)
@@ -290,6 +310,7 @@ fn render(lang: Lang, site: &Site, headline: &Headline, tone: Tone, details: Mar
                 meta property="og:locale" content=(lang.locale());
                 meta property="og:locale:alternate" content=(lang.other().locale());
                 link rel="icon" href="/favicon.svg" type="image/svg+xml";
+                (structured_data)
                 style { (PreEscaped(STYLE)) }
             }
             body {

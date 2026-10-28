@@ -1,4 +1,4 @@
-use jiff::civil::{Date, time};
+use jiff::civil::{Date, date, time};
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 
@@ -58,6 +58,26 @@ impl Season {
             .expect("the seasons cover every month")
     }
 
+    /// The dates of the run of this season under way on `day`, or of the
+    /// next one.
+    pub(crate) fn run_from(&self, day: Date) -> (Date, Date) {
+        [day.year() - 1, day.year(), day.year() + 1]
+            .into_iter()
+            .map(|year| {
+                let last_year = if self.first_month <= self.last_month {
+                    year
+                } else {
+                    year + 1
+                };
+                (
+                    date(year, self.first_month, 1),
+                    date(last_year, self.last_month, 1).last_of_month(),
+                )
+            })
+            .find(|&(_, last)| last >= day)
+            .expect("a season runs within any two years")
+    }
+
     fn contains(&self, month: i8) -> bool {
         if self.first_month <= self.last_month {
             (self.first_month..=self.last_month).contains(&month)
@@ -88,6 +108,6 @@ fn madrid_time(day: Date, hour: i8) -> Zoned {
 }
 
 // Embedded at build time: the image has no tz data to read.
-fn madrid() -> TimeZone {
+pub(crate) fn madrid() -> TimeZone {
     jiff::tz::get!("Europe/Madrid")
 }
