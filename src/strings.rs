@@ -18,6 +18,7 @@ pub(crate) struct Strings {
     pub(crate) title: &'static str,
     pub(crate) description: &'static str,
     pub(crate) question: &'static str,
+    pub(crate) park: &'static str,
     pub(crate) headline: fn(Verdict) -> &'static str,
     pub(crate) upstream_failure: &'static str,
     pub(crate) open: &'static str,
@@ -101,6 +102,7 @@ const ES: Strings = Strings {
     title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
     description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
     question: "¿Está abierto el Retiro?",
+    park: "Parque del Retiro",
     headline: |verdict| match verdict {
         Verdict::Open => "Abierto",
         Verdict::OpenWithRestrictions => "Abierto con restricciones",
@@ -176,6 +178,7 @@ const EN: Strings = Strings {
     title: "Is Retiro Park open today? Live status, Madrid",
     description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.",
     question: "Is Retiro Park open?",
+    park: "Retiro Park",
     headline: |verdict| match verdict {
         Verdict::Open => "Open",
         Verdict::OpenWithRestrictions => "Open with restrictions",

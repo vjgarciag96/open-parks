@@ -8,6 +8,7 @@ use open_parks::poller::{Fetched, Latest};
 use open_parks::public_url::PublicUrl;
 use open_parks::sigma;
 use reqwest::Url;
+use serde_json::{Value, json};
 use tokio::sync::watch;
 use tower::ServiceExt;
 
@@ -385,10 +386,12 @@ async fn an_upstream_that_never_responds_is_a_gateway_timeout_page() {
 }
 
 #[tokio::test]
-async fn the_page_has_no_scripts_and_inline_styles_only() {
+async fn the_page_runs_no_scripts_and_has_inline_styles_only() {
     let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
 
-    assert!(!body.contains("<script"), "{body}");
+    // Its only script element is structured data, which nothing runs.
+    assert_eq!(body.matches("<script").count(), 1, "{body}");
+    assert_eq!(body.matches(STRUCTURED_DATA).count(), 1, "{body}");
     assert!(!body.contains(r#"rel="stylesheet""#), "{body}");
     assert!(body.contains("<style>"), "{body}");
 }
@@ -1053,4 +1056,128 @@ async fn there_is_no_sitemap_without_a_public_url() {
     let response = get(fetched("code_1_open.json"), "/sitemap.xml").await;
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+const STRUCTURED_DATA: &str = r#"<script type="application/ld+json">"#;
+
+fn structured_data(body: &str) -> Value {
+    let (_, rest) = body.split_once(STRUCTURED_DATA).expect(body);
+    let (json, _) = rest.split_once("</script>").expect(body);
+    serde_json::from_str(json).unwrap()
+}
+
+#[tokio::test]
+async fn structured_data_describes_the_page_and_the_park_in_its_language() {
+    for (uri, language, title, park) in [
+        (
+            "/es",
+            "es",
+            "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
+            "Parque del Retiro",
+        ),
+        (
+            "/en",
+            "en",
+            "Is Retiro Park open today? Live status, Madrid",
+            "Retiro Park",
+        ),
+    ] {
+        let data = structured_data(&text_body(get(fetched("code_1_open.json"), uri).await).await);
+
+        assert_eq!(data["@context"], "https://schema.org", "{data}");
+        assert_eq!(data["@type"], "WebPage", "{data}");
+        assert_eq!(data["name"], title, "{data}");
+        assert_eq!(data["inLanguage"], language, "{data}");
+        assert_eq!(data["dateModified"], "2026-10-11T09:30:00Z", "{data}");
+        assert!(
+            data["isBasedOn"]
+                .as_str()
+                .unwrap()
+                .starts_with("https://www.madrid.es/"),
+            "{data}"
+        );
+        assert_eq!(data["about"]["@type"], "Park", "{data}");
+        assert_eq!(data["about"]["name"], park, "{data}");
+        assert_eq!(
+            data["about"]["address"]["addressLocality"], "Madrid",
+            "{data}"
+        );
+    }
+}
+
+fn hours(opens: &str, closes: &str, from: &str, through: &str) -> Value {
+    json!({
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        "opens": opens,
+        "closes": closes,
+        "validFrom": from,
+        "validThrough": through,
+    })
+}
+
+#[tokio::test]
+async fn structured_data_gives_the_hours_of_the_season_under_way_and_the_next() {
+    let cases = [
+        // Winter, after the new year.
+        (
+            "2027-02-11T09:30:00Z",
+            ["2026-10-01", "2027-03-31"],
+            ["2027-04-01", "2027-09-30"],
+        ),
+        // Summer.
+        (
+            "2026-07-11T09:30:00Z",
+            ["2026-10-01", "2027-03-31"],
+            ["2026-04-01", "2026-09-30"],
+        ),
+        // Winter, before the new year.
+        (
+            "2026-10-11T09:30:00Z",
+            ["2026-10-01", "2027-03-31"],
+            ["2027-04-01", "2027-09-30"],
+        ),
+        // Still September in UTC, but already October, and winter, in Madrid.
+        (
+            "2026-09-30T22:30:00Z",
+            ["2026-10-01", "2027-03-31"],
+            ["2027-04-01", "2027-09-30"],
+        ),
+    ];
+    for (now, [winter_from, winter_through], [summer_from, summer_through]) in cases {
+        let data = structured_data(&body_at("code_1_open.json", now, "/es").await);
+
+        assert_eq!(
+            data["about"]["openingHoursSpecification"],
+            json!([
+                hours("06:00", "22:00", winter_from, winter_through),
+                hours("06:00", "23:59", summer_from, summer_through),
+            ]),
+            "now {now}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn structured_data_links_the_page_only_with_a_public_url() {
+    let with = get_with_public_url(fetched("code_1_open.json"), "/en").await;
+    let without = get(fetched("code_1_open.json"), "/en").await;
+
+    assert_eq!(
+        structured_data(&text_body(with).await)["url"],
+        "https://retiro.example/en"
+    );
+    assert_eq!(
+        structured_data(&text_body(without).await)["url"],
+        Value::Null
+    );
+}
+
+#[tokio::test]
+async fn structured_data_has_no_modified_date_when_the_status_couldnt_be_fetched() {
+    let body = text_body(get(Err(sigma::FetchError::Timeout), "/es").await).await;
+
+    let data = structured_data(&body);
+    assert_eq!(data["dateModified"], Value::Null, "{data}");
+    assert_eq!(data["about"]["@type"], "Park", "{data}");
 }
