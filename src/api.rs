@@ -20,9 +20,11 @@ struct ApiState {
     clock: Arc<dyn Clock>,
 }
 
+pub(crate) const RETIRO_STATUS_PATH: &str = "/api/v1/parks/retiro/status";
+
 pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
     Router::new()
-        .route("/api/v1/parks/retiro/status", get(retiro_status))
+        .route(RETIRO_STATUS_PATH, get(retiro_status))
         .with_state(ApiState {
             latest,
             clock: Arc::new(clock),
