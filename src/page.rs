@@ -81,7 +81,9 @@ pub fn router(
 }
 
 fn robots_txt(site: &Site) -> String {
-    let mut robots = String::from("User-agent: *\nDisallow: /api/\n");
+    // The API is open too: it's the most exact answer an agent can read.
+    // Search engines see its noindex instead.
+    let mut robots = String::from("User-agent: *\nAllow: /\n");
     if let Some(public_url) = &site.public_url {
         robots.push_str(&format!("Sitemap: {}\n", public_url.of("/sitemap.xml")));
     }
