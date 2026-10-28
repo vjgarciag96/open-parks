@@ -1001,7 +1001,7 @@ async fn the_favicon_is_served_as_svg() {
 }
 
 #[tokio::test]
-async fn robots_txt_keeps_crawlers_off_the_api_and_points_to_the_sitemap() {
+async fn robots_txt_lets_crawlers_read_everything_and_points_to_the_sitemap() {
     let response = get_with_public_url(fetched("code_1_open.json"), "/robots.txt").await;
 
     assert_eq!(response.status(), StatusCode::OK);
@@ -1011,7 +1011,7 @@ async fn robots_txt_keeps_crawlers_off_the_api_and_points_to_the_sitemap() {
     );
     assert_eq!(
         text_body(response).await,
-        "User-agent: *\nDisallow: /api/\nSitemap: https://retiro.example/sitemap.xml\n"
+        "User-agent: *\nAllow: /\nSitemap: https://retiro.example/sitemap.xml\n"
     );
 }
 
@@ -1019,7 +1019,7 @@ async fn robots_txt_keeps_crawlers_off_the_api_and_points_to_the_sitemap() {
 async fn robots_txt_has_no_sitemap_without_a_public_url() {
     let body = text_body(get(fetched("code_1_open.json"), "/robots.txt").await).await;
 
-    assert_eq!(body, "User-agent: *\nDisallow: /api/\n");
+    assert_eq!(body, "User-agent: *\nAllow: /\n");
 }
 
 #[tokio::test]

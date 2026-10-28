@@ -80,6 +80,16 @@ async fn retiro_status_is_served_as_json() {
 }
 
 #[tokio::test]
+async fn search_engines_are_told_not_to_list_the_api() {
+    let failing = watch::channel(Err(sigma::FetchError::Timeout)).1;
+    for latest in [fetched("code_1_open.json"), failing] {
+        let response = get(latest, RETIRO_STATUS).await;
+
+        assert_eq!(response.headers()["x-robots-tag"], "noindex");
+    }
+}
+
+#[tokio::test]
 async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
     let body = json_body(get_retiro_status("code_6_red_alert_restrictions.json").await).await;
 
