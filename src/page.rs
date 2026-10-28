@@ -18,6 +18,8 @@ use crate::public_url::PublicUrl;
 use crate::schedule;
 use crate::strings::{Age, Strings};
 
+mod llms_txt;
+
 const STYLE: &str = include_str!("../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
 const FAVICON: &str = include_str!("../assets/favicon.svg");
@@ -68,6 +70,10 @@ pub fn router(
         .route(
             "/sitemap.xml",
             get(async |State(state): State<PageState>| sitemap_xml(&state.site)),
+        )
+        .route(
+            "/llms.txt",
+            get(async |State(state): State<PageState>| llms_txt::response(&state.site)),
         )
         .route("/favicon.svg", get(async || favicon()))
         .with_state(PageState {
