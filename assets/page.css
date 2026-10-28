@@ -266,6 +266,11 @@ table {
   box-shadow: 0 0 0 3px var(--ok-halo);
 }
 
+/* A wrap falls before the age, not inside it. */
+.ago {
+  white-space: nowrap;
+}
+
 .updated.stale {
   padding-bottom: 0.2rem;
 }
