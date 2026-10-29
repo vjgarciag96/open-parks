@@ -21,6 +21,7 @@ async fn main() -> io::Result<()> {
     let public_url = public_url()?;
     let telegram_bot_username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?;
     let telegram = telegram_bot(telegram_bot_username.clone())?;
+    let database = notification_database(telegram.is_some())?;
     let listener = tokio::net::TcpListener::bind(&address)
         .await
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
@@ -29,26 +30,24 @@ async fn main() -> io::Result<()> {
     let (latest, poller) = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
     let mut bot = None;
     let mut notifier = None;
-    if let Some(TelegramBot {
-        client,
-        username,
-        database,
-    }) = telegram
-    {
-        let subscribers = Subscribers::new(database.clone());
-        let broadcast = Broadcast::new(
-            client.clone(),
-            subscribers.clone(),
-            Pace::LIVE,
-            public_url.clone(),
-        );
-        bot = Some(telegram::start(
-            client,
-            username,
-            subscribers,
-            latest.clone(),
-        ));
-        let channels = Channels::new().with(broadcast);
+    if let Some(database) = database {
+        let mut channels = Channels::new();
+        if let Some((client, username)) = telegram {
+            let subscribers = Subscribers::new(database.clone());
+            let broadcast = Broadcast::new(
+                client.clone(),
+                subscribers.clone(),
+                Pace::LIVE,
+                public_url.clone(),
+            );
+            channels = channels.with(broadcast);
+            bot = Some(telegram::start(
+                client,
+                username,
+                subscribers,
+                latest.clone(),
+            ));
+        }
         notifier = Some(
             notifier::start(LastStatus::new(database), latest.clone(), channels)
                 .await
@@ -107,14 +106,7 @@ fn public_url() -> io::Result<Option<PublicUrl>> {
     })
 }
 
-struct TelegramBot {
-    client: telegram::Client,
-    username: String,
-    /// Where the subscribers and the last status notified are kept.
-    database: Database,
-}
-
-fn telegram_bot(username: Option<String>) -> io::Result<Option<TelegramBot>> {
+fn telegram_bot(username: Option<String>) -> io::Result<Option<(telegram::Client, String)>> {
     let Some(token) = env_var("OPEN_PARKS_TELEGRAM_BOT_TOKEN")?.map(BotToken::new) else {
         return Ok(None);
     };
@@ -125,19 +117,18 @@ fn telegram_bot(username: Option<String>) -> io::Result<Option<TelegramBot>> {
     })?;
     let client = telegram::Client::live(token)
         .map_err(|error| io::Error::other(format!("building the Telegram client: {error}")))?;
-    let database = notification_database()?;
-    Ok(Some(TelegramBot {
-        client,
-        username,
-        database,
-    }))
+    Ok(Some((client, username)))
 }
 
-fn notification_database() -> io::Result<Database> {
+fn notification_database(needed: bool) -> io::Result<Option<Database>> {
+    if !needed {
+        return Ok(None);
+    }
     let path = env_var("OPEN_PARKS_DATABASE")?.ok_or_else(|| {
         io::Error::other("OPEN_PARKS_DATABASE must be set when a notification channel is")
     })?;
     Database::open(Path::new(&path))
+        .map(Some)
         .map_err(|error| io::Error::other(format!("opening the database at {path}: {error}")))
 }
 
