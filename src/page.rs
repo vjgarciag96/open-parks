@@ -42,9 +42,8 @@ struct Site {
 }
 
 #[derive(Clone)]
-struct Status {
+struct PageState {
     latest: watch::Receiver<Latest>,
-    clock: Arc<dyn Clock>,
     site: Arc<Site>,
 }
 
@@ -54,25 +53,29 @@ pub fn router(
     telegram_bot_username: Option<String>,
     public_url: Option<PublicUrl>,
 ) -> Router {
+    let clock: Arc<dyn Clock> = Arc::new(clock);
+    let status_in = |lang: Lang| {
+        let clock = clock.clone();
+        get(async move |State(state): State<PageState>| retiro_status(&state, lang, clock.now()))
+    };
     Router::new()
         .route(
             "/",
             get(async |headers: HeaderMap| redirect_to_preferred(&headers)),
         )
-        .route("/es", get(async |latest| retiro_status(latest, Lang::Es)))
-        .route("/en", get(async |latest| retiro_status(latest, Lang::En)))
+        .route("/es", status_in(Lang::Es))
+        .route("/en", status_in(Lang::En))
         .route(
             "/robots.txt",
-            get(async |State(status): State<Status>| robots_txt(&status.site)),
+            get(async |State(state): State<PageState>| robots_txt(&state.site)),
         )
         .route(
             "/sitemap.xml",
-            get(async |State(status): State<Status>| sitemap_xml(&status.site)),
+            get(async |State(state): State<PageState>| sitemap_xml(&state.site)),
         )
         .route("/favicon.svg", get(async || favicon()))
-        .with_state(Status {
+        .with_state(PageState {
             latest,
-            clock: Arc::new(clock),
             site: Arc::new(Site {
                 telegram_bot_username,
                 public_url,
@@ -180,16 +183,8 @@ fn quality(params: &str) -> Option<f32> {
     }
 }
 
-fn retiro_status(
-    State(Status {
-        latest,
-        clock,
-        site,
-    }): State<Status>,
-    lang: Lang,
-) -> Response {
+fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timestamp) -> Response {
     let strings = lang.strings();
-    let now = clock.now();
     let schedule = schedule::retiro(now);
     match &*latest.borrow() {
         Ok(fetched) => {
@@ -197,7 +192,7 @@ fn retiro_status(
             let headline = Headline::new(strings, alerts, &schedule);
             render(
                 lang,
-                &site,
+                site,
                 &headline,
                 tone(alerts),
                 details(strings, fetched, now),
@@ -206,7 +201,7 @@ fn retiro_status(
         }
         Err(error) => {
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
-            let page = render(lang, &site, &headline, tone(Alerts::Unchecked), html! {});
+            let page = render(lang, site, &headline, tone(Alerts::Unchecked), html! {});
             (error.gateway_status(), page).into_response()
         }
     }
