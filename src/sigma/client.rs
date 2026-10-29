@@ -8,7 +8,6 @@ use crate::park_status::ParkStatus;
 
 const QUERY_ENDPOINT: &str =
     "https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0/query";
-const TIMEOUT: Duration = Duration::from_secs(10);
 const RETIRO: &str = "Jardines del Buen Retiro";
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 
@@ -19,12 +18,12 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn live() -> Result<Self, reqwest::Error> {
-        Self::at(Url::parse(QUERY_ENDPOINT).expect("QUERY_ENDPOINT is valid"))
-    }
+    /// What `live` waits for each request.
+    pub const TIMEOUT: Duration = Duration::from_secs(10);
 
-    pub fn at(query_endpoint: Url) -> Result<Self, reqwest::Error> {
-        Self::new(query_endpoint, TIMEOUT)
+    pub fn live() -> Result<Self, reqwest::Error> {
+        let query_endpoint = Url::parse(QUERY_ENDPOINT).expect("QUERY_ENDPOINT is valid");
+        Self::new(query_endpoint, Self::TIMEOUT)
     }
 
     pub fn new(query_endpoint: Url, timeout: Duration) -> Result<Self, reqwest::Error> {

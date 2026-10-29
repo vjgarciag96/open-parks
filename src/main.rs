@@ -86,7 +86,7 @@ fn sigma_client() -> io::Result<sigma::Client> {
             let url = Url::parse(&url).map_err(|error| {
                 io::Error::other(format!("OPEN_PARKS_SIGMA_QUERY_URL: {error}"))
             })?;
-            sigma::Client::at(url)
+            sigma::Client::new(url, sigma::Client::TIMEOUT)
         }
         None => sigma::Client::live(),
     };
