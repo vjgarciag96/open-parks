@@ -14,18 +14,23 @@ use crate::poller::{Fetched, Latest};
 use crate::schedule::{self, Schedule};
 use crate::sigma::FetchError;
 
-pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
-    let clock: Arc<dyn Clock> = Arc::new(clock);
-    Router::new()
-        .route(
-            "/api/v1/parks/retiro/status",
-            get(async move |State(latest)| retiro_status(latest, clock.now())),
-        )
-        .with_state(latest)
+#[derive(Clone)]
+struct ApiState {
+    latest: watch::Receiver<Latest>,
+    clock: Arc<dyn Clock>,
 }
 
-fn retiro_status(latest: watch::Receiver<Latest>, now: Timestamp) -> Response {
-    let schedule = ScheduleResponse::from(schedule::retiro(now));
+pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
+    Router::new()
+        .route("/api/v1/parks/retiro/status", get(retiro_status))
+        .with_state(ApiState {
+            latest,
+            clock: Arc::new(clock),
+        })
+}
+
+async fn retiro_status(State(ApiState { latest, clock }): State<ApiState>) -> Response {
+    let schedule = ScheduleResponse::from(schedule::retiro(clock.now()));
     match &*latest.borrow() {
         Ok(fetched) => Json(StatusResponse::new(fetched, schedule)).into_response(),
         Err(error) => upstream_failure(error, schedule),
