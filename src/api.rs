@@ -19,12 +19,12 @@ pub fn router(latest: watch::Receiver<Latest>, clock: impl Clock) -> Router {
     Router::new()
         .route(
             "/api/v1/parks/retiro/status",
-            get(async move |State(latest)| retiro_status(latest, clock.now())),
+            get(async move |State(latest)| retiro_status(&latest, clock.now())),
         )
         .with_state(latest)
 }
 
-fn retiro_status(latest: watch::Receiver<Latest>, now: Timestamp) -> Response {
+fn retiro_status(latest: &watch::Receiver<Latest>, now: Timestamp) -> Response {
     let schedule = ScheduleResponse::from(schedule::retiro(now));
     match &*latest.borrow() {
         Ok(fetched) => Json(StatusResponse::new(fetched, schedule)).into_response(),
