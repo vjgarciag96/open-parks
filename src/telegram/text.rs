@@ -13,8 +13,8 @@ use crate::public_url::PublicUrl;
 use crate::schedule::{self, Schedule};
 use crate::strings::Strings;
 
-/// The answer to /status and the like: the page's headline, then the
-/// details when the status could be fetched.
+/// The answer to /status and the like: the page's headline, each fact
+/// once, then the details when the status could be fetched.
 pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     let strings = lang.strings();
     let alerts = match latest {
@@ -23,18 +23,25 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     };
     let schedule = schedule::retiro(now);
     let headline = Headline::new(strings, alerts, &schedule);
-    let mut text = format!("{}\n{}", strings.question, headline.answer);
-    if let Some(schedule) = &headline.schedule {
-        write!(text, "\n{schedule}").unwrap();
+    // The page sets the answer, the schedule line and the alert line apart;
+    // a message can't, so it gives each fact once, the cause first.
+    let lead = match (&schedule, &headline.schedule) {
+        (Schedule::Closed { .. }, Some(closed_by_schedule)) => closed_by_schedule.as_str(),
+        // The answer, but a weather closure named with its cause.
+        _ => headline.preview,
+    };
+    let mut text = format!("{}\n{lead}", strings.question);
+    if let (Schedule::Open { .. }, Some(closes_at)) = (&schedule, &headline.schedule) {
+        write!(text, "\n{closes_at}").unwrap();
     }
-    // Within hours these answers already say what the alert line would;
-    // the page sets them apart, but in a message they'd read twice.
-    let answered = matches!(schedule, Schedule::Open { .. })
-        && matches!(
-            alerts,
-            Alerts::Unchecked | Alerts::Checked(Verdict::ClosureForecast | Verdict::Unknown)
-        );
-    if !answered {
+    let said = match alerts {
+        Alerts::Checked(Verdict::Closed) => true,
+        Alerts::Unchecked | Alerts::Checked(Verdict::ClosureForecast | Verdict::Unknown) => {
+            matches!(schedule, Schedule::Open { .. })
+        }
+        Alerts::Checked(_) => false,
+    };
+    if !said {
         write!(text, "\n{}: {}", strings.alerts, headline.alert).unwrap();
     }
     if let Ok(fetched) = latest {
