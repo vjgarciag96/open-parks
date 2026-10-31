@@ -17,6 +17,7 @@ use crate::poller::{Fetched, Latest};
 use crate::public_url::PublicUrl;
 use crate::schedule;
 use crate::strings::{Age, Strings};
+use crate::structured_data;
 
 const STYLE: &str = include_str!("../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
@@ -193,6 +194,7 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
             render(
                 lang,
                 site,
+                now,
                 &headline,
                 tone(alerts),
                 details(strings, fetched, now),
@@ -201,7 +203,14 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
         }
         Err(error) => {
             let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
-            let page = render(lang, site, &headline, tone(Alerts::Unchecked), html! {});
+            let page = render(
+                lang,
+                site,
+                now,
+                &headline,
+                tone(Alerts::Unchecked),
+                html! {},
+            );
             (error.gateway_status(), page).into_response()
         }
     }
@@ -258,7 +267,14 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
     }
 }
 
-fn render(lang: Lang, site: &Site, headline: &Headline, tone: Tone, details: Markup) -> Markup {
+fn render(
+    lang: Lang,
+    site: &Site,
+    now: Timestamp,
+    headline: &Headline,
+    tone: Tone,
+    details: Markup,
+) -> Markup {
     let strings = lang.strings();
     html! {
         (DOCTYPE)
@@ -285,6 +301,9 @@ fn render(lang: Lang, site: &Site, headline: &Headline, tone: Tone, details: Mar
                 meta property="og:locale" content=(lang.locale());
                 meta property="og:locale:alternate" content=(lang.other().locale());
                 link rel="icon" href="/favicon.svg" type="image/svg+xml";
+                script type="application/ld+json" {
+                    (PreEscaped(structured_data::park(lang, site.public_url.as_ref(), now)))
+                }
                 style { (PreEscaped(STYLE)) }
             }
             body {
