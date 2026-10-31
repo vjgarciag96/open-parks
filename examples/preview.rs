@@ -79,9 +79,7 @@ async fn main() -> std::io::Result<()> {
                  <h2>Phone</h2><div class=\"frames\">{phones}</div>"
             ),
         )?;
-        index.push_str(&format!(
-            " · <a href=\"{schemes}\">light &amp; dark</a></li>"
-        ));
+        index.push_str(&format!(" <a href=\"{schemes}\">light &amp; dark</a></li>"));
     }
     index.push_str("</ul>");
     let index_path = output.join("index.html");
