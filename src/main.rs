@@ -47,6 +47,7 @@ async fn main() -> io::Result<()> {
             username,
             subscribers,
             latest.clone(),
+            Timestamp::now,
         ));
         let channels = Channels::new().with(broadcast);
         notifier = Some(

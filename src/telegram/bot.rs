@@ -7,6 +7,7 @@ use super::{
     BotCommand, ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers,
     UpdateKind, User, text,
 };
+use crate::clock::Clock;
 use crate::database::DatabaseError;
 use crate::error::with_sources;
 use crate::lang::Lang;
@@ -21,6 +22,7 @@ pub fn start(
     username: String,
     subscribers: Subscribers,
     latest: watch::Receiver<Latest>,
+    clock: impl Clock,
 ) -> JoinHandle<()> {
     tokio::spawn(introduce(client.clone()));
     tokio::spawn(async move {
@@ -29,6 +31,7 @@ pub fn start(
             subscribers,
             latest,
             username,
+            clock: Box::new(clock),
         };
         let mut offset = None;
         loop {
@@ -95,6 +98,7 @@ struct Bot {
     subscribers: Subscribers,
     latest: watch::Receiver<Latest>,
     username: String,
+    clock: Box<dyn Clock>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -226,10 +230,7 @@ impl Bot {
     }
 
     fn status(&self, lang: Lang) -> String {
-        match &*self.latest.borrow() {
-            Ok(fetched) => text::status(lang, &fetched.status),
-            Err(_) => replies(lang).not_known_yet.to_owned(),
-        }
+        text::status(lang, &self.latest.borrow(), self.clock.now())
     }
 }
 
@@ -246,7 +247,6 @@ struct Replies {
     subscribed: &'static str,
     stored: fn(ChatId) -> String,
     stopped: &'static str,
-    not_known_yet: &'static str,
 }
 
 fn replies(lang: Lang) -> &'static Replies {
@@ -276,7 +276,6 @@ const ES: Replies = Replies {
         )
     },
     stopped: "Ya no te avisaremos. Hemos borrado el ID de este chat y el idioma.",
-    not_known_yet: "Todavía no sabemos si el Retiro está abierto. Prueba de nuevo en unos minutos.",
 };
 
 const EN: Replies = Replies {
@@ -299,5 +298,4 @@ const EN: Replies = Replies {
         )
     },
     stopped: "You won’t be notified any more. This chat’s ID and language have been deleted.",
-    not_known_yet: "We don’t know yet whether Retiro is open. Try again in a few minutes.",
 };
