@@ -26,7 +26,7 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     if let Some(schedule) = &headline.schedule {
         write!(text, "\n{schedule}").unwrap();
     }
-    write!(text, "\n{}", headline.alert).unwrap();
+    write!(text, "\n{}: {}", strings.alerts, headline.alert).unwrap();
     if let Ok(fetched) = latest {
         write_details(&mut text, strings, &fetched.status);
     }
