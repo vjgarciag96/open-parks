@@ -252,7 +252,7 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
 
 #[tokio::test]
 async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
-    let reopens = Some("Cerrado por horario\u{a0}· Abre a las 06:00");
+    let reopens = Some("Cerrado por horario. Abre a las 06:00");
     let cases = [
         ("code_1_open.json", "Sin alertas", reopens),
         ("code_2_incidents.json", "Con restricciones", reopens),
@@ -330,7 +330,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
         (
             OUTSIDE_HOURS,
             "Cerrado",
-            Some("Cerrado por horario\u{a0}· Abre a las 06:00"),
+            Some("Cerrado por horario. Abre a las 06:00"),
         ),
     ];
     for (now, answer, schedule) in cases {
@@ -493,7 +493,7 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
 
 #[tokio::test]
 async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
-    let reopens = Some("Closed for the night\u{a0}· Opens at 06:00");
+    let reopens = Some("Closed for the night. Opens at 06:00");
     let cases = [
         ("code_1_open.json", "No alerts", reopens),
         ("code_2_incidents.json", "Restrictions in place", reopens),
@@ -545,7 +545,7 @@ async fn a_failing_upstream_outside_hours_is_explained_in_english() {
         &Headline {
             answer: "Closed",
             alert: "We couldn’t check for weather alerts",
-            schedule: Some("Closed for the night\u{a0}· Opens at 06:00"),
+            schedule: Some("Closed for the night. Opens at 06:00"),
         },
     );
 }
