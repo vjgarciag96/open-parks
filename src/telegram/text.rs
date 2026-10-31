@@ -7,10 +7,10 @@ use jiff::Timestamp;
 use crate::headline::{Alerts, Headline};
 use crate::lang::Lang;
 use crate::notifier::{Change, Notification};
-use crate::park_status::ParkStatus;
+use crate::park_status::{ParkStatus, Verdict};
 use crate::poller::Latest;
 use crate::public_url::PublicUrl;
-use crate::schedule;
+use crate::schedule::{self, Schedule};
 use crate::strings::Strings;
 
 /// The answer to /status and the like: the page's headline, then the
@@ -21,12 +21,22 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
         Ok(fetched) => Alerts::Checked(fetched.status.code.verdict()),
         Err(_) => Alerts::Unchecked,
     };
-    let headline = Headline::new(strings, alerts, &schedule::retiro(now));
+    let schedule = schedule::retiro(now);
+    let headline = Headline::new(strings, alerts, &schedule);
     let mut text = format!("{}\n{}", strings.question, headline.answer);
     if let Some(schedule) = &headline.schedule {
         write!(text, "\n{schedule}").unwrap();
     }
-    write!(text, "\n{}: {}", strings.alerts, headline.alert).unwrap();
+    // Within hours these answers already say what the alert line would;
+    // the page sets them apart, but in a message they'd read twice.
+    let answered = matches!(schedule, Schedule::Open { .. })
+        && matches!(
+            alerts,
+            Alerts::Unchecked | Alerts::Checked(Verdict::ClosureForecast | Verdict::Unknown)
+        );
+    if !answered {
+        write!(text, "\n{}: {}", strings.alerts, headline.alert).unwrap();
+    }
     if let Ok(fetched) = latest {
         write_details(&mut text, strings, &fetched.status);
     }
