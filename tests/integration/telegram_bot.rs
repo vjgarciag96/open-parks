@@ -188,8 +188,7 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
              data. Send /subscribe to get notified, /status to check now and /unsubscribe \
              to stop.\n\n\
              Is Retiro Park open?\n\
-             Closed\n\
-             Alerts: Closed due to a weather alert\n\n\
+             Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
@@ -239,8 +238,7 @@ async fn subscribe_subscribes_the_chat_and_replies_with_the_status_and_what_is_s
             42,
             "Te avisaremos cuando el Retiro cierre o vuelva a abrir.\n\n\
              ¿Está abierto el Retiro?\n\
-             Cerrado\n\
-             Alertas: Cerrado por alerta meteorológica\n\n\
+             Cerrado por alerta meteorológica\n\n\
              Fechas: 13/10/2026\n\
              Reapertura: Cuando terminen las inspecciones\n\
              Observaciones: Viento fuerte\n\n\
@@ -432,8 +430,7 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
         [reply(
             42,
             "Is Retiro Park open?\n\
-             Closed\n\
-             Alerts: Closed due to a weather alert\n\n\
+             Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
@@ -618,14 +615,12 @@ async fn outside_hours_status_says_the_park_is_closed_for_the_night() {
         (
             "es",
             "¿Está abierto el Retiro?\n\
-             Cerrado\n\
              Cerrado por horario. Abre a las 06:00\n\
              Alertas: Sin alertas",
         ),
         (
             "en",
             "Is Retiro Park open?\n\
-             Closed\n\
              Closed for the night. Opens at 06:00\n\
              Alerts: No alerts",
         ),
@@ -638,14 +633,13 @@ async fn outside_hours_status_says_the_park_is_closed_for_the_night() {
 }
 
 #[tokio::test]
-async fn outside_hours_status_names_a_weather_closure_without_an_opening_time() {
+async fn outside_hours_status_names_a_weather_closure_once_without_an_opening_time() {
     let text = status_reply(closed(), OUTSIDE_HOURS, "es").await;
 
     assert!(
         text.starts_with(
             "¿Está abierto el Retiro?\n\
-             Cerrado\n\
-             Alertas: Cerrado por alerta meteorológica\n\n"
+             Cerrado por alerta meteorológica\n\n"
         ),
         "got {text:?}"
     );
@@ -680,7 +674,6 @@ async fn outside_hours_a_failed_fetch_still_says_the_park_is_closed_for_the_nigh
     assert_eq!(
         text,
         "Is Retiro Park open?\n\
-         Closed\n\
          Closed for the night. Opens at 06:00\n\
          Alerts: We couldn’t check for weather alerts"
     );
