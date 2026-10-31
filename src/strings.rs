@@ -17,6 +17,7 @@ impl Lang {
 pub(crate) struct Strings {
     pub(crate) title: &'static str,
     pub(crate) description: &'static str,
+    pub(crate) park_name: &'static str,
     pub(crate) question: &'static str,
     pub(crate) headline: fn(Verdict) -> &'static str,
     pub(crate) upstream_failure: &'static str,
@@ -100,6 +101,7 @@ impl Age {
 const ES: Strings = Strings {
     title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
     description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
+    park_name: "Parque del Retiro",
     question: "¿Está abierto el Retiro?",
     headline: |verdict| match verdict {
         Verdict::Open => "Abierto",
@@ -175,6 +177,7 @@ const ES: Strings = Strings {
 const EN: Strings = Strings {
     title: "Is Retiro Park open today? Live status, Madrid",
     description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.",
+    park_name: "Retiro Park",
     question: "Is Retiro Park open?",
     headline: |verdict| match verdict {
         Verdict::Open => "Open",

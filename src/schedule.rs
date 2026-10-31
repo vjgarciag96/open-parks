@@ -1,4 +1,4 @@
-use jiff::civil::{Date, time};
+use jiff::civil::{Date, date, time};
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 
@@ -21,6 +21,47 @@ pub fn retiro(now: Timestamp) -> Schedule {
     }
     Schedule::Closed {
         opens_at: opening(today.tomorrow().expect("the park's hours are within range")),
+    }
+}
+
+/// The season `now` falls in and the one after it, with the days each
+/// runs this time round.
+pub(crate) fn upcoming_seasons(now: Timestamp) -> [Dated; 2] {
+    let current = Dated::containing(now.to_zoned(madrid()).date());
+    let next = Dated::containing(
+        current
+            .last_day
+            .tomorrow()
+            .expect("the park's hours are within range"),
+    );
+    [current, next]
+}
+
+/// A season with the days, first and last included, it runs one year.
+pub(crate) struct Dated {
+    pub(crate) season: &'static Season,
+    pub(crate) first_day: Date,
+    pub(crate) last_day: Date,
+}
+
+impl Dated {
+    fn containing(day: Date) -> Dated {
+        let season = Season::of(day);
+        let first_year = if day.month() >= season.first_month {
+            day.year()
+        } else {
+            day.year() - 1
+        };
+        let last_year = if season.first_month <= season.last_month {
+            first_year
+        } else {
+            first_year + 1
+        };
+        Dated {
+            season,
+            first_day: date(first_year, season.first_month, 1),
+            last_day: date(last_year, season.last_month, 1).last_of_month(),
+        }
     }
 }
 

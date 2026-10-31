@@ -13,4 +13,5 @@ pub mod public_url;
 pub mod schedule;
 pub mod sigma;
 mod strings;
+mod structured_data;
 pub mod telegram;
