@@ -298,7 +298,7 @@ async fn subscribe_replies_in_english_to_anyone_not_using_telegram_in_spanish() 
 }
 
 #[tokio::test]
-async fn subscribe_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
+async fn subscribe_says_the_status_couldnt_be_checked_when_the_fetch_failed() {
     let bot = Bot::start(failed()).await;
 
     bot.handle("message", private_message(42, Some("en"), "/subscribe"))
@@ -308,7 +308,7 @@ async fn subscribe_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
     assert!(
         bot.replies()[0]
             .text
-            .contains("We couldn’t check for weather alerts"),
+            .contains("We couldn’t check the status"),
         "got {:?}",
         bot.replies()
     );
@@ -460,7 +460,7 @@ async fn status_replies_in_the_subscribed_chats_language() {
 }
 
 #[tokio::test]
-async fn status_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
+async fn status_says_the_status_couldnt_be_checked_when_the_fetch_failed() {
     let bot = Bot::start(failed()).await;
 
     bot.handle("message", private_message(42, Some("es"), "/status"))
@@ -472,8 +472,7 @@ async fn status_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
             42,
             "¿Está abierto el Retiro?\n\
              No hemos podido consultar el estado\n\
-             Cierra a las 22:00\n\
-             Alertas: No hemos podido consultar si hay alertas"
+             Cierra a las 22:00"
         )]
     );
 }
@@ -603,22 +602,6 @@ async fn failing_to_set_the_commands_still_sets_the_descriptions_and_answers_com
     assert_eq!(bot.replies().len(), 1);
 }
 
-/// The headline lines a reply starts with, as the page shows them.
-fn headline(
-    (question, alerts): (&str, &str),
-    answer: &str,
-    schedule: Option<&str>,
-    alert: &str,
-) -> String {
-    match schedule {
-        Some(schedule) => format!("{question}\n{answer}\n{schedule}\n{alerts}: {alert}"),
-        None => format!("{question}\n{answer}\n{alerts}: {alert}"),
-    }
-}
-
-const SPANISH: (&str, &str) = ("¿Está abierto el Retiro?", "Alertas");
-const ENGLISH: (&str, &str) = ("Is Retiro Park open?", "Alerts");
-
 async fn status_reply(latest: Latest, now: &str, language_code: &str) -> String {
     let bot = Bot::start_at(latest, now).await;
     bot.handle(
@@ -629,306 +612,76 @@ async fn status_reply(latest: Latest, now: &str, language_code: &str) -> String 
     bot.replies().remove(0).text
 }
 
-async fn assert_status_headlines(
-    now: &str,
-    language_code: &str,
-    headings: (&str, &str),
-    cases: &[(&str, &str, Option<&str>, &str)],
-) {
-    for &(name, answer, schedule, alert) in cases {
-        let text = status_reply(from_fixture(name), now, language_code).await;
-
-        let expected = headline(headings, answer, schedule, alert);
-        assert!(
-            text.starts_with(&format!("{expected}\n\n")) || text == expected,
-            "fixture {name}: expected {expected:?}, got {text:?}"
-        );
-    }
-}
-
 #[tokio::test]
-async fn within_hours_status_answers_as_the_page_does() {
-    let closes = Some("Cierra a las 22:00");
-    assert_status_headlines(
-        WITHIN_HOURS,
-        "es",
-        SPANISH,
-        &[
-            ("code_1_open.json", "Abierto", closes, "Sin alertas"),
-            (
-                "code_2_incidents.json",
-                "Abierto",
-                closes,
-                "Con restricciones",
-            ),
-            (
-                "code_3_yellow_alert.json",
-                "Abierto",
-                closes,
-                "Con restricciones",
-            ),
-            (
-                "code_4_orange_alert.json",
-                "Abierto",
-                closes,
-                "No se recomienda permanecer",
-            ),
-            (
-                "code_5_red_alert_closure.json",
-                "Abierto, cierre previsto por alerta",
-                None,
-                "Cierre previsto",
-            ),
-            (
-                "code_6_red_alert_restrictions.json",
-                "Abierto",
-                closes,
-                "Con restricciones",
-            ),
-            (
-                "code_7_closed.json",
-                "Cerrado",
-                None,
-                "Cerrado por alerta meteorológica",
-            ),
-            (
-                "unknown_codes.json",
-                "Estado desconocido",
-                closes,
-                "Estado desconocido",
-            ),
-        ],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn outside_hours_status_says_the_park_is_closed_as_the_page_does() {
-    let reopens = Some("Cerrado por horario. Abre a las 06:00");
-    assert_status_headlines(
-        OUTSIDE_HOURS,
-        "es",
-        SPANISH,
-        &[
-            ("code_1_open.json", "Cerrado", reopens, "Sin alertas"),
-            (
-                "code_2_incidents.json",
-                "Cerrado",
-                reopens,
-                "Con restricciones",
-            ),
-            (
-                "code_3_yellow_alert.json",
-                "Cerrado",
-                reopens,
-                "Con restricciones",
-            ),
-            (
-                "code_4_orange_alert.json",
-                "Cerrado",
-                reopens,
-                "No se recomienda permanecer",
-            ),
-            (
-                "code_5_red_alert_closure.json",
-                "Cerrado",
-                Some("Cerrado por horario"),
-                "Cierre previsto",
-            ),
-            (
-                "code_6_red_alert_restrictions.json",
-                "Cerrado",
-                reopens,
-                "Con restricciones",
-            ),
-            (
-                "code_7_closed.json",
-                "Cerrado",
-                None,
-                "Cerrado por alerta meteorológica",
-            ),
-            (
-                "unknown_codes.json",
-                "Cerrado",
-                reopens,
-                "Estado desconocido",
-            ),
-        ],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn within_hours_status_answers_in_english_as_the_page_does() {
-    let closes = Some("Closes at 22:00");
-    assert_status_headlines(
-        WITHIN_HOURS,
-        "en",
-        ENGLISH,
-        &[
-            ("code_1_open.json", "Open", closes, "No alerts"),
-            (
-                "code_2_incidents.json",
-                "Open",
-                closes,
-                "Restrictions in place",
-            ),
-            (
-                "code_3_yellow_alert.json",
-                "Open",
-                closes,
-                "Restrictions in place",
-            ),
-            (
-                "code_4_orange_alert.json",
-                "Open",
-                closes,
-                "Staying is not advised",
-            ),
-            (
-                "code_5_red_alert_closure.json",
-                "Open, closure expected due to an alert",
-                None,
-                "Closure expected",
-            ),
-            (
-                "code_6_red_alert_restrictions.json",
-                "Open",
-                closes,
-                "Restrictions in place",
-            ),
-            (
-                "code_7_closed.json",
-                "Closed",
-                None,
-                "Closed due to a weather alert",
-            ),
-            (
-                "unknown_codes.json",
-                "Status unknown",
-                closes,
-                "Status unknown",
-            ),
-        ],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn outside_hours_status_says_the_park_is_closed_in_english_as_the_page_does() {
-    let reopens = Some("Closed for the night. Opens at 06:00");
-    assert_status_headlines(
-        OUTSIDE_HOURS,
-        "en",
-        ENGLISH,
-        &[
-            ("code_1_open.json", "Closed", reopens, "No alerts"),
-            (
-                "code_2_incidents.json",
-                "Closed",
-                reopens,
-                "Restrictions in place",
-            ),
-            (
-                "code_3_yellow_alert.json",
-                "Closed",
-                reopens,
-                "Restrictions in place",
-            ),
-            (
-                "code_4_orange_alert.json",
-                "Closed",
-                reopens,
-                "Staying is not advised",
-            ),
-            (
-                "code_5_red_alert_closure.json",
-                "Closed",
-                Some("Closed for the night"),
-                "Closure expected",
-            ),
-            (
-                "code_6_red_alert_restrictions.json",
-                "Closed",
-                reopens,
-                "Restrictions in place",
-            ),
-            (
-                "code_7_closed.json",
-                "Closed",
-                None,
-                "Closed due to a weather alert",
-            ),
-            ("unknown_codes.json", "Closed", reopens, "Status unknown"),
-        ],
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn a_failed_fetch_is_answered_as_the_page_does() {
+async fn outside_hours_status_says_the_park_is_closed_for_the_night() {
     let cases = [
         (
-            WITHIN_HOURS,
             "es",
-            headline(
-                SPANISH,
-                "No hemos podido consultar el estado",
-                Some("Cierra a las 22:00"),
-                "No hemos podido consultar si hay alertas",
-            ),
+            "¿Está abierto el Retiro?\n\
+             Cerrado\n\
+             Cerrado por horario. Abre a las 06:00\n\
+             Alertas: Sin alertas",
         ),
         (
-            OUTSIDE_HOURS,
-            "es",
-            headline(
-                SPANISH,
-                "Cerrado",
-                Some("Cerrado por horario. Abre a las 06:00"),
-                "No hemos podido consultar si hay alertas",
-            ),
-        ),
-        (
-            WITHIN_HOURS,
             "en",
-            headline(
-                ENGLISH,
-                "We couldn’t check the status",
-                Some("Closes at 22:00"),
-                "We couldn’t check for weather alerts",
-            ),
-        ),
-        (
-            OUTSIDE_HOURS,
-            "en",
-            headline(
-                ENGLISH,
-                "Closed",
-                Some("Closed for the night. Opens at 06:00"),
-                "We couldn’t check for weather alerts",
-            ),
+            "Is Retiro Park open?\n\
+             Closed\n\
+             Closed for the night. Opens at 06:00\n\
+             Alerts: No alerts",
         ),
     ];
-    for (now, language_code, expected) in cases {
-        assert_eq!(status_reply(failed(), now, language_code).await, expected);
+    for (language_code, expected) in cases {
+        let text = status_reply(open(), OUTSIDE_HOURS, language_code).await;
+
+        assert_eq!(text, expected);
     }
 }
 
 #[tokio::test]
-async fn start_gives_the_same_headline_as_status() {
-    for now in [WITHIN_HOURS, OUTSIDE_HOURS] {
-        let bot = Bot::start_at(from_fixture("code_1_open.json"), now).await;
+async fn outside_hours_status_names_a_weather_closure_without_an_opening_time() {
+    let text = status_reply(closed(), OUTSIDE_HOURS, "es").await;
 
-        bot.handle("message", private_message(42, Some("en"), "/status"))
-            .await;
-        bot.handle("message", private_message(42, Some("en"), "/start"))
-            .await;
+    assert!(
+        text.starts_with(
+            "¿Está abierto el Retiro?\n\
+             Cerrado\n\
+             Alertas: Cerrado por alerta meteorológica\n\n"
+        ),
+        "got {text:?}"
+    );
+}
 
-        let replies = bot.replies();
-        let (_, status) = replies[1]
-            .text
-            .split_once("\n\n")
-            .expect("/start describes the bot before the status");
-        assert_eq!(status, replies[0].text, "at {now}");
+#[tokio::test]
+async fn within_hours_status_leaves_out_an_alert_line_that_repeats_the_answer() {
+    let cases = [
+        (
+            from_fixture("code_5_red_alert_closure.json"),
+            "¿Está abierto el Retiro?\n\
+             Abierto, cierre previsto por alerta\n\n",
+        ),
+        (
+            from_fixture("unknown_codes.json"),
+            "¿Está abierto el Retiro?\n\
+             Estado desconocido\n\
+             Cierra a las 22:00\n\n",
+        ),
+    ];
+    for (latest, expected) in cases {
+        let text = status_reply(latest, WITHIN_HOURS, "es").await;
+
+        assert!(text.starts_with(expected), "got {text:?}");
     }
+}
+
+#[tokio::test]
+async fn outside_hours_a_failed_fetch_still_says_the_park_is_closed_for_the_night() {
+    let text = status_reply(failed(), OUTSIDE_HOURS, "en").await;
+
+    assert_eq!(
+        text,
+        "Is Retiro Park open?\n\
+         Closed\n\
+         Closed for the night. Opens at 06:00\n\
+         Alerts: We couldn’t check for weather alerts"
+    );
 }
