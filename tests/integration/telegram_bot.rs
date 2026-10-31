@@ -189,7 +189,7 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
              to stop.\n\n\
              Is Retiro Park open?\n\
              Closed\n\
-             Closed due to a weather alert\n\n\
+             Alerts: Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
@@ -240,7 +240,7 @@ async fn subscribe_subscribes_the_chat_and_replies_with_the_status_and_what_is_s
             "Te avisaremos cuando el Retiro cierre o vuelva a abrir.\n\n\
              ¿Está abierto el Retiro?\n\
              Cerrado\n\
-             Cerrado por alerta meteorológica\n\n\
+             Alertas: Cerrado por alerta meteorológica\n\n\
              Fechas: 13/10/2026\n\
              Reapertura: Cuando terminen las inspecciones\n\
              Observaciones: Viento fuerte\n\n\
@@ -290,7 +290,7 @@ async fn subscribe_replies_in_english_to_anyone_not_using_telegram_in_spanish() 
              Is Retiro Park open?\n\
              Open\n\
              Closes at 22:00\n\
-             No alerts\n\n\
+             Alerts: No alerts\n\n\
              To notify you, we store this chat’s ID (3) and language (English). \
              /unsubscribe ends the notifications and deletes both."
         )
@@ -433,7 +433,7 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
             42,
             "Is Retiro Park open?\n\
              Closed\n\
-             Closed due to a weather alert\n\n\
+             Alerts: Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
@@ -454,7 +454,7 @@ async fn status_replies_in_the_subscribed_chats_language() {
         bot.replies()[1],
         reply(
             42,
-            "¿Está abierto el Retiro?\nAbierto\nCierra a las 22:00\nSin alertas"
+            "¿Está abierto el Retiro?\nAbierto\nCierra a las 22:00\nAlertas: Sin alertas"
         )
     );
 }
@@ -473,7 +473,7 @@ async fn status_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
             "¿Está abierto el Retiro?\n\
              No hemos podido consultar el estado\n\
              Cierra a las 22:00\n\
-             No hemos podido consultar si hay alertas"
+             Alertas: No hemos podido consultar si hay alertas"
         )]
     );
 }
@@ -604,12 +604,20 @@ async fn failing_to_set_the_commands_still_sets_the_descriptions_and_answers_com
 }
 
 /// The headline lines a reply starts with, as the page shows them.
-fn headline(question: &str, answer: &str, schedule: Option<&str>, alert: &str) -> String {
+fn headline(
+    (question, alerts): (&str, &str),
+    answer: &str,
+    schedule: Option<&str>,
+    alert: &str,
+) -> String {
     match schedule {
-        Some(schedule) => format!("{question}\n{answer}\n{schedule}\n{alert}"),
-        None => format!("{question}\n{answer}\n{alert}"),
+        Some(schedule) => format!("{question}\n{answer}\n{schedule}\n{alerts}: {alert}"),
+        None => format!("{question}\n{answer}\n{alerts}: {alert}"),
     }
 }
+
+const SPANISH: (&str, &str) = ("¿Está abierto el Retiro?", "Alertas");
+const ENGLISH: (&str, &str) = ("Is Retiro Park open?", "Alerts");
 
 async fn status_reply(latest: Latest, now: &str, language_code: &str) -> String {
     let bot = Bot::start_at(latest, now).await;
@@ -624,13 +632,13 @@ async fn status_reply(latest: Latest, now: &str, language_code: &str) -> String 
 async fn assert_status_headlines(
     now: &str,
     language_code: &str,
-    question: &str,
+    headings: (&str, &str),
     cases: &[(&str, &str, Option<&str>, &str)],
 ) {
     for &(name, answer, schedule, alert) in cases {
         let text = status_reply(from_fixture(name), now, language_code).await;
 
-        let expected = headline(question, answer, schedule, alert);
+        let expected = headline(headings, answer, schedule, alert);
         assert!(
             text.starts_with(&format!("{expected}\n\n")) || text == expected,
             "fixture {name}: expected {expected:?}, got {text:?}"
@@ -644,7 +652,7 @@ async fn within_hours_status_answers_as_the_page_does() {
     assert_status_headlines(
         WITHIN_HOURS,
         "es",
-        "¿Está abierto el Retiro?",
+        SPANISH,
         &[
             ("code_1_open.json", "Abierto", closes, "Sin alertas"),
             (
@@ -700,7 +708,7 @@ async fn outside_hours_status_says_the_park_is_closed_as_the_page_does() {
     assert_status_headlines(
         OUTSIDE_HOURS,
         "es",
-        "¿Está abierto el Retiro?",
+        SPANISH,
         &[
             ("code_1_open.json", "Cerrado", reopens, "Sin alertas"),
             (
@@ -756,7 +764,7 @@ async fn within_hours_status_answers_in_english_as_the_page_does() {
     assert_status_headlines(
         WITHIN_HOURS,
         "en",
-        "Is Retiro Park open?",
+        ENGLISH,
         &[
             ("code_1_open.json", "Open", closes, "No alerts"),
             (
@@ -812,7 +820,7 @@ async fn outside_hours_status_says_the_park_is_closed_in_english_as_the_page_doe
     assert_status_headlines(
         OUTSIDE_HOURS,
         "en",
-        "Is Retiro Park open?",
+        ENGLISH,
         &[
             ("code_1_open.json", "Closed", reopens, "No alerts"),
             (
@@ -864,7 +872,7 @@ async fn a_failed_fetch_is_answered_as_the_page_does() {
             WITHIN_HOURS,
             "es",
             headline(
-                "¿Está abierto el Retiro?",
+                SPANISH,
                 "No hemos podido consultar el estado",
                 Some("Cierra a las 22:00"),
                 "No hemos podido consultar si hay alertas",
@@ -874,7 +882,7 @@ async fn a_failed_fetch_is_answered_as_the_page_does() {
             OUTSIDE_HOURS,
             "es",
             headline(
-                "¿Está abierto el Retiro?",
+                SPANISH,
                 "Cerrado",
                 Some("Cerrado por horario. Abre a las 06:00"),
                 "No hemos podido consultar si hay alertas",
@@ -884,7 +892,7 @@ async fn a_failed_fetch_is_answered_as_the_page_does() {
             WITHIN_HOURS,
             "en",
             headline(
-                "Is Retiro Park open?",
+                ENGLISH,
                 "We couldn’t check the status",
                 Some("Closes at 22:00"),
                 "We couldn’t check for weather alerts",
@@ -894,7 +902,7 @@ async fn a_failed_fetch_is_answered_as_the_page_does() {
             OUTSIDE_HOURS,
             "en",
             headline(
-                "Is Retiro Park open?",
+                ENGLISH,
                 "Closed",
                 Some("Closed for the night. Opens at 06:00"),
                 "We couldn’t check for weather alerts",
