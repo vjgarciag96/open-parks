@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use axum::http::StatusCode;
+use jiff::Timestamp;
 use open_parks::database::Database;
 use open_parks::lang::Lang;
 use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
@@ -16,6 +17,8 @@ use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
 const USERNAME: &str = "RetiroAbiertoBot";
+// The page tests' time, so a reply can be held to the page's headline.
+const WITHIN_HOURS: &str = "2026-10-11T09:30:00Z";
 
 struct Bot {
     fake: FakeTelegram,
@@ -26,10 +29,15 @@ struct Bot {
 
 impl Bot {
     async fn start(latest: Latest) -> Self {
-        Self::start_on(FakeTelegram::start().await, latest)
+        Self::start_at(latest, WITHIN_HOURS).await
     }
 
-    fn start_on(fake: FakeTelegram, latest: Latest) -> Self {
+    async fn start_at(latest: Latest, now: &str) -> Self {
+        Self::start_on(FakeTelegram::start().await, latest, now)
+    }
+
+    fn start_on(fake: FakeTelegram, latest: Latest, now: &str) -> Self {
+        let now: Timestamp = now.parse().unwrap();
         let directory = TempDir::new().unwrap();
         let database = Database::open(&directory.path().join("open-parks.sqlite3")).unwrap();
         let client = telegram::Client::new(
@@ -44,6 +52,7 @@ impl Bot {
             USERNAME.to_owned(),
             Subscribers::new(database.clone()),
             receiver,
+            move || now,
         );
         Self {
             fake,
@@ -173,6 +182,7 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
              data. Send /subscribe to get notified, /status to check now and /unsubscribe \
              to stop.\n\n\
              Is Retiro Park open?\n\
+             Closed\n\
              Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
@@ -223,6 +233,7 @@ async fn subscribe_subscribes_the_chat_and_replies_with_the_status_and_what_is_s
             42,
             "Te avisaremos cuando el Retiro cierre o vuelva a abrir.\n\n\
              ¿Está abierto el Retiro?\n\
+             Cerrado\n\
              Cerrado por alerta meteorológica\n\n\
              Fechas: 13/10/2026\n\
              Reapertura: Cuando terminen las inspecciones\n\
@@ -271,7 +282,9 @@ async fn subscribe_replies_in_english_to_anyone_not_using_telegram_in_spanish() 
             3,
             "You’ll be notified when Retiro closes or reopens.\n\n\
              Is Retiro Park open?\n\
-             Open\n\n\
+             Open\n\
+             Closes at 22:00\n\
+             No alerts\n\n\
              To notify you, we store this chat’s ID (3) and language (English). \
              /unsubscribe ends the notifications and deletes both."
         )
@@ -279,7 +292,7 @@ async fn subscribe_replies_in_english_to_anyone_not_using_telegram_in_spanish() 
 }
 
 #[tokio::test]
-async fn subscribe_says_the_status_isnt_known_yet_before_a_fetch_succeeds() {
+async fn subscribe_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
     let bot = Bot::start(failed()).await;
 
     bot.handle("message", private_message(42, Some("en"), "/subscribe"))
@@ -289,7 +302,7 @@ async fn subscribe_says_the_status_isnt_known_yet_before_a_fetch_succeeds() {
     assert!(
         bot.replies()[0]
             .text
-            .contains("We don’t know yet whether Retiro is open."),
+            .contains("We couldn’t check for weather alerts"),
         "got {:?}",
         bot.replies()
     );
@@ -413,6 +426,7 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
         [reply(
             42,
             "Is Retiro Park open?\n\
+             Closed\n\
              Closed due to a weather alert\n\n\
              Dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
@@ -432,12 +446,15 @@ async fn status_replies_in_the_subscribed_chats_language() {
 
     assert_eq!(
         bot.replies()[1],
-        reply(42, "¿Está abierto el Retiro?\nAbierto")
+        reply(
+            42,
+            "¿Está abierto el Retiro?\nAbierto\nCierra a las 22:00\nSin alertas"
+        )
     );
 }
 
 #[tokio::test]
-async fn status_says_it_isnt_known_yet_before_a_fetch_succeeds() {
+async fn status_says_the_alerts_couldnt_be_checked_when_the_fetch_failed() {
     let bot = Bot::start(failed()).await;
 
     bot.handle("message", private_message(42, Some("es"), "/status"))
@@ -447,7 +464,10 @@ async fn status_says_it_isnt_known_yet_before_a_fetch_succeeds() {
         bot.replies(),
         [reply(
             42,
-            "Todavía no sabemos si el Retiro está abierto. Prueba de nuevo en unos minutos."
+            "¿Está abierto el Retiro?\n\
+             No hemos podido consultar el estado\n\
+             Cierra a las 22:00\n\
+             No hemos podido consultar si hay alertas"
         )]
     );
 }
@@ -566,7 +586,7 @@ async fn the_descriptions_are_set_at_startup_in_spanish_and_by_default_in_englis
 async fn failing_to_set_the_commands_still_sets_the_descriptions_and_answers_commands() {
     let fake = FakeTelegram::start().await;
     fake.fail_profile_method("setMyCommands");
-    let bot = Bot::start_on(fake, open());
+    let bot = Bot::start_on(fake, open(), WITHIN_HOURS);
 
     bot.profile("setMyDescription").await;
     bot.profile("setMyShortDescription").await;

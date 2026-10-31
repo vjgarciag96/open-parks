@@ -2,21 +2,34 @@
 
 use std::fmt::Write;
 
+use jiff::Timestamp;
+
+use crate::headline::{Alerts, Headline};
 use crate::lang::Lang;
 use crate::notifier::{Change, Notification};
 use crate::park_status::ParkStatus;
+use crate::poller::Latest;
 use crate::public_url::PublicUrl;
+use crate::schedule;
 use crate::strings::Strings;
 
-/// The answer to /status and the like.
-pub(super) fn status(lang: Lang, status: &ParkStatus) -> String {
+/// The answer to /status and the like: the page's headline, then the
+/// details when the status could be fetched.
+pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     let strings = lang.strings();
-    let mut text = format!(
-        "{}\n{}",
-        strings.question,
-        (strings.headline)(status.code.verdict())
-    );
-    write_details(&mut text, strings, status);
+    let alerts = match latest {
+        Ok(fetched) => Alerts::Checked(fetched.status.code.verdict()),
+        Err(_) => Alerts::Unchecked,
+    };
+    let headline = Headline::new(strings, alerts, &schedule::retiro(now));
+    let mut text = format!("{}\n{}", strings.question, headline.answer);
+    if let Some(schedule) = &headline.schedule {
+        write!(text, "\n{schedule}").unwrap();
+    }
+    write!(text, "\n{}", headline.alert).unwrap();
+    if let Ok(fetched) = latest {
+        write_details(&mut text, strings, &fetched.status);
+    }
     text
 }
 
