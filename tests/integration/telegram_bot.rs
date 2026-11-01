@@ -189,7 +189,7 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
              to stop.\n\n\
              Is Retiro Park open?\n\
              Closed due to a weather alert\n\n\
-             Dates: 13/10/2026\n\
+             Incident dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
         )]
@@ -239,7 +239,7 @@ async fn subscribe_subscribes_the_chat_and_replies_with_the_status_and_what_is_s
             "Te avisaremos cuando el Retiro cierre o vuelva a abrir.\n\n\
              ¿Está abierto el Retiro?\n\
              Cerrado por alerta meteorológica\n\n\
-             Fechas: 13/10/2026\n\
+             Fechas de la incidencia: 13/10/2026\n\
              Reapertura: Cuando terminen las inspecciones\n\
              Observaciones: Viento fuerte\n\n\
              Para avisarte guardamos el ID de este chat (42) y el idioma (español). \
@@ -431,9 +431,35 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
             42,
             "Is Retiro Park open?\n\
              Closed due to a weather alert\n\n\
-             Dates: 13/10/2026\n\
+             Incident dates: 13/10/2026\n\
              Reopening: Once inspections finish\n\
              Notes: Viento fuerte"
+        )]
+    );
+}
+
+#[tokio::test]
+async fn status_leaves_out_the_dates_sigma_sends_while_the_park_is_open() {
+    let bot = Bot::start(fetched(ParkStatus {
+        code: AlertCode::Open,
+        dates: Some("01/11/2026".to_owned()),
+        hours: None,
+        reopening: None,
+        notes: None,
+    }))
+    .await;
+
+    bot.handle("message", private_message(42, Some("en"), "/status"))
+        .await;
+
+    assert_eq!(
+        bot.replies(),
+        [reply(
+            42,
+            "Is Retiro Park open?\n\
+             Open\n\
+             Closes at 22:00\n\
+             Alerts: No alerts"
         )]
     );
 }

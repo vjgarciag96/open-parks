@@ -57,8 +57,15 @@ impl Strings {
         &self,
         status: &'a ParkStatus,
     ) -> impl Iterator<Item = (&'static str, &'a str)> {
+        // SIGMA fills in the dates even with no incident, with what looks
+        // like the day of its last bulletin, which reads as an unexplained
+        // date under an open park.
+        let dates = match status.code.verdict() {
+            Verdict::Open => None,
+            _ => status.dates.as_deref(),
+        };
         [
-            (self.dates, status.dates.as_deref()),
+            (self.dates, dates),
             (self.incident_hours, status.hours.as_deref()),
             (self.reopening, status.reopening.map(self.forecast)),
             (self.notes, status.notes.as_deref()),
@@ -155,7 +162,7 @@ const ES: Strings = Strings {
         "Diciembre",
     ],
     season_hours: |season| format!("{}:00–{}:00", season.opens, season.closes),
-    dates: "Fechas",
+    dates: "Fechas de la incidencia",
     incident_hours: "Horario de la incidencia",
     reopening: "Reapertura",
     forecast: |forecast| match forecast {
@@ -241,7 +248,7 @@ const EN: Strings = Strings {
         24 => format!("{}:00–midnight", season.opens),
         closes => format!("{}:00–{closes}:00", season.opens),
     },
-    dates: "Dates",
+    dates: "Incident dates",
     incident_hours: "Incident hours",
     reopening: "Reopening",
     forecast: |forecast| match forecast {

@@ -656,7 +656,7 @@ async fn the_page_shows_the_status_details() {
     let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
 
     assert!(
-        body.contains("<dt>Fechas</dt><dd>12/10/2026</dd>"),
+        body.contains("<dt>Fechas de la incidencia</dt><dd>12/10/2026</dd>"),
         "{body}"
     );
     assert!(
@@ -691,18 +691,27 @@ async fn every_reopening_forecast_is_shown() {
 
 #[tokio::test]
 async fn absent_details_are_left_out() {
-    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_5_red_alert_closure.json"), "/es").await).await;
 
     assert!(
-        body.contains("<dt>Fechas</dt><dd>10/10/2026</dd>"),
+        body.contains("<dt>Fechas de la incidencia</dt><dd>12/10/2026</dd>"),
         "{body}"
     );
-    for term in ["Horario de la incidencia", "Reapertura", "Observaciones"] {
+    for term in ["Horario de la incidencia", "Observaciones"] {
         assert!(
             !body.contains(&format!("<dt>{term}</dt>")),
             "{term}: {body}"
         );
     }
+}
+
+#[tokio::test]
+async fn an_open_park_shows_no_incident_dates() {
+    // code_1_open.json carries a date, as SIGMA sends with no incident.
+    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+
+    assert!(!body.contains("10/10/2026"), "{body}");
+    assert!(!body.contains("<dl>"), "{body}");
 }
 
 #[tokio::test]
@@ -785,7 +794,7 @@ async fn the_status_details_are_shown_in_english() {
     let body = body_at("code_7_closed.json", "2026-10-11T12:00:00Z", "/en").await;
 
     for expected in [
-        "<dt>Dates</dt><dd>13/10/2026</dd>",
+        "<dt>Incident dates</dt><dd>13/10/2026</dd>",
         "<dt>Reopening</dt><dd>See the notes</dd>",
         "<dt>Notes</dt><dd>El parque permanecerá cerrado hasta la retirada de las ramas caídas.</dd>",
         concat!(

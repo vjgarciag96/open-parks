@@ -127,7 +127,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
                 1,
                 "El Retiro ha cerrado.\n\
                  Cerrado por alerta meteorológica\n\n\
-                 Fechas: 13/10/2026\n\
+                 Fechas de la incidencia: 13/10/2026\n\
                  Reapertura: Cuando terminen las inspecciones\n\
                  Observaciones: Viento fuerte\n\n\
                  https://retiro.example/es"
@@ -136,7 +136,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
                 2,
                 "Retiro has closed.\n\
                  Closed due to a weather alert\n\n\
-                 Dates: 13/10/2026\n\
+                 Incident dates: 13/10/2026\n\
                  Reopening: Once inspections finish\n\
                  Notes: Viento fuerte\n\n\
                  https://retiro.example/en"
