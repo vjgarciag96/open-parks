@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use serde::de::DeserializeOwned;
+
 pub(crate) fn client_builder() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
         .tls_backend_preconfigured(tls_config())
@@ -35,4 +37,18 @@ pub(crate) async fn read_body<E: From<reqwest::Error>>(
         body.extend_from_slice(&chunk);
     }
     Ok(body)
+}
+
+pub(crate) fn from_json<T: DeserializeOwned>(
+    json: &str,
+) -> Result<T, serde_path_to_error::Error<serde_json::Error>> {
+    let mut track = serde_path_to_error::Track::new();
+    let mut deserializer = serde_json::Deserializer::from_str(json);
+    T::deserialize(serde_path_to_error::Deserializer::new(
+        &mut deserializer,
+        &mut track,
+    ))
+    // Reject anything after the JSON value, as `serde_json::from_str` does.
+    .and_then(|value| deserializer.end().map(|()| value))
+    .map_err(|error| serde_path_to_error::Error::new(track.path(), error))
 }
