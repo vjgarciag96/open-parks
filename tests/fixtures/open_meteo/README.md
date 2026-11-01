@@ -19,6 +19,7 @@ copies of `retiro.json`:
 - `nulls.json`: `null` temperature, weather code and day/night at the first
   timestamp, and `null` rain chance and gusts at the second.
 - `mismatched_lengths.json`: the last gust removed.
+- `extra_value.json`: a rain chance appended after the last timestamp's.
 - `is_day_2.json`: an `is_day` of 2 at the fourth timestamp.
 - `malformed.json`: `retiro.json` cut off partway through.
 

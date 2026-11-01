@@ -10,8 +10,7 @@ use open_parks::open_meteo::{self, DecodeError, FetchError};
 use reqwest::Url;
 use tokio::io::AsyncWriteExt;
 
-use crate::support::fake_open_meteo::{serving, serving_json, url_for};
-use crate::support::fake_sigma::json;
+use crate::support::fake_open_meteo::{json, serving, serving_json, url_for};
 use crate::support::fixtures::open_meteo_fixture;
 use crate::support::timeouts::{GENEROUS_TIMEOUT, SHORT_TIMEOUT};
 

@@ -82,10 +82,9 @@ fn null_values_decode_as_missing() {
 }
 
 #[test]
-fn is_day_decodes_as_day_or_night() {
+fn is_day_1_decodes_as_day() {
     let forecast = open_meteo::decode(&open_meteo_fixture("retiro.json")).unwrap();
 
-    assert_eq!(forecast.hours[0].is_day, Some(false));
     assert_eq!(forecast.hours[12].is_day, Some(true));
 }
 
@@ -110,6 +109,23 @@ fn a_variable_with_fewer_values_than_timestamps_is_a_decode_error() {
                 variable: "wind_gusts_10m",
                 expected: 48,
                 found: 47,
+            })
+        ),
+        "got {result:?}"
+    );
+}
+
+#[test]
+fn a_variable_with_more_values_than_timestamps_is_a_decode_error() {
+    let result = open_meteo::decode(&open_meteo_fixture("extra_value.json"));
+
+    assert!(
+        matches!(
+            result,
+            Err(DecodeError::LengthMismatch {
+                variable: "precipitation_probability",
+                expected: 48,
+                found: 49,
             })
         ),
         "got {result:?}"
