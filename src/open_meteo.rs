@@ -5,6 +5,9 @@ use crate::forecast::{Forecast, HourForecast};
 use crate::http::from_json;
 use crate::schedule::madrid;
 
+mod client;
+pub use client::{Client, FetchError};
+
 pub fn decode(json: &str) -> Result<Forecast, DecodeError> {
     let Response { hourly } = from_json(json)?;
     let expected = hourly.time.len();
