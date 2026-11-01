@@ -129,6 +129,6 @@ fn madrid_time(day: Date, hour: i8) -> Zoned {
 }
 
 // Embedded at build time: the image has no tz data to read.
-fn madrid() -> TimeZone {
+pub(crate) fn madrid() -> TimeZone {
     jiff::tz::get!("Europe/Madrid")
 }
