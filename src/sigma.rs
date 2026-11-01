@@ -1,6 +1,6 @@
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 
+use crate::http::from_json;
 use crate::park_status::{AlertCode, ParkStatus, ReopeningForecast};
 
 mod client;
@@ -76,20 +76,6 @@ struct Attributes {
     reopening: Option<i16>,
     #[serde(rename = "OBSERVACIONES")]
     notes: Option<String>,
-}
-
-fn from_json<T: DeserializeOwned>(
-    json: &str,
-) -> Result<T, serde_path_to_error::Error<serde_json::Error>> {
-    let mut track = serde_path_to_error::Track::new();
-    let mut deserializer = serde_json::Deserializer::from_str(json);
-    T::deserialize(serde_path_to_error::Deserializer::new(
-        &mut deserializer,
-        &mut track,
-    ))
-    // Reject anything after the JSON value, as `serde_json::from_str` does.
-    .and_then(|value| deserializer.end().map(|()| value))
-    .map_err(|error| serde_path_to_error::Error::new(track.path(), error))
 }
 
 // Codes from the layer's renderer (`MapServer/0?f=json`).
