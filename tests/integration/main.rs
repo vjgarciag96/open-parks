@@ -1,21 +1,21 @@
 //! The integration tests, built as one binary so the crate links once.
 
-mod api;
-mod database;
-mod last_status;
+mod core_database;
 mod notification_delivery;
 mod notifier;
+mod notifier_last_status;
 mod open_meteo_client;
 mod open_meteo_decode;
-mod page;
+mod park_schedule;
 mod park_status;
-mod poller;
-mod public_url;
-mod schedule;
 mod server;
 mod sigma_client;
 mod sigma_decode;
+mod sigma_poller;
 mod support;
 mod telegram_bot;
 mod telegram_broadcast;
 mod telegram_client;
+mod web_api;
+mod web_page;
+mod web_public_url;

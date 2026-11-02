@@ -1,7 +1,7 @@
 use rusqlite::OptionalExtension;
 
-use crate::database::{Database, DatabaseError};
-use crate::park_status::AlertCode;
+use crate::core::database::{Database, DatabaseError};
+use crate::park::status::AlertCode;
 use crate::sigma;
 
 /// Stores the code as SIGMA numbers it, rather than in a numbering of its

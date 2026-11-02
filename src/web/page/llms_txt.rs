@@ -1,9 +1,9 @@
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 
-use crate::api::RETIRO_STATUS_PATH;
-use crate::lang::Lang;
-use crate::schedule::SEASONS;
+use crate::i18n::Lang;
+use crate::park::schedule::SEASONS;
+use crate::web::api::RETIRO_STATUS_PATH;
 
 use super::{SOURCE_URL, Site};
 

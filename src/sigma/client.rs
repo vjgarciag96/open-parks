@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use reqwest::{StatusCode, Url};
 
-use super::{DecodeError, decode};
-use crate::http;
-use crate::park_status::ParkStatus;
+use super::decode::{DecodeError, decode};
+use crate::core::http;
+use crate::park::status::ParkStatus;
 
 const QUERY_ENDPOINT: &str =
     "https://sigma.madrid.es/hosted/rest/services/MEDIO_AMBIENTE/ALERTAS_PARQUES/MapServer/0/query";

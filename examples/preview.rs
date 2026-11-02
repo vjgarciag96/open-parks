@@ -9,9 +9,9 @@ use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
 use jiff::{SignedDuration, Timestamp};
-use open_parks::page;
-use open_parks::poller::{Fetched, Latest};
 use open_parks::sigma::{self, FetchError};
+use open_parks::sigma::{Fetched, Latest};
+use open_parks::web::page;
 use tokio::sync::watch;
 use tower::ServiceExt;
 

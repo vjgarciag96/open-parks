@@ -1,4 +1,4 @@
-use open_parks::park_status::{AlertCode, Verdict};
+use open_parks::park::status::{AlertCode, Verdict};
 
 #[test]
 fn open_park_is_open() {

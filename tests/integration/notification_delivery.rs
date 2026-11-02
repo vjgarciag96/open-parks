@@ -3,11 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use jiff::Timestamp;
-use open_parks::database::Database;
+use open_parks::core::database::Database;
 use open_parks::notifier::{self, Channel, Channels, LastStatus, Notification};
-use open_parks::park_status::{AlertCode, ParkStatus, Verdict};
-use open_parks::poller::{self, Latest};
-use open_parks::sigma;
+use open_parks::park::status::{AlertCode, ParkStatus, Verdict};
+use open_parks::sigma::{self, Latest};
 use reqwest::Url;
 use tempfile::TempDir;
 use tokio::sync::{Semaphore, mpsc, watch};
@@ -74,7 +73,7 @@ fn fetch_time() -> Timestamp {
 
 async fn poll(upstream: &Upstream) -> watch::Receiver<Latest> {
     let client = sigma::Client::new(upstream.url.clone(), GENEROUS_TIMEOUT).unwrap();
-    poller::start(client, OFTEN, fetch_time).await.0
+    sigma::start(client, OFTEN, fetch_time).await.0
 }
 
 async fn start(path: &Path, latest: watch::Receiver<Latest>, channels: Channels) {
@@ -276,7 +275,7 @@ async fn once_the_poller_stops_the_notifier_finishes_after_its_channels_have_sen
         recording,
     };
     let client = sigma::Client::new(upstream.url.clone(), GENEROUS_TIMEOUT).unwrap();
-    let (latest, poller) = poller::start(client, OFTEN, fetch_time).await;
+    let (latest, poller) = sigma::start(client, OFTEN, fetch_time).await;
     let notifier = notifier::start(last_status(&path), latest, Channels::new().with(held))
         .await
         .unwrap();

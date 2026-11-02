@@ -5,7 +5,7 @@ use reqwest::{StatusCode, Url, header};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::http;
+use crate::core::http;
 
 const API_URL: &str = "https://api.telegram.org";
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;

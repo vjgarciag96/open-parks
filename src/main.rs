@@ -3,11 +3,12 @@ use std::time::Duration;
 use std::{env, io};
 
 use jiff::Timestamp;
-use open_parks::database::Database;
+use open_parks::core::database::Database;
 use open_parks::notifier::{Channels, LastStatus};
-use open_parks::public_url::PublicUrl;
 use open_parks::telegram::{BotToken, Broadcast, Pace, Subscribers};
-use open_parks::{api, notifier, page, poller, sigma, telegram};
+use open_parks::web::public_url::PublicUrl;
+use open_parks::web::{api, page};
+use open_parks::{notifier, sigma, telegram};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
 
@@ -17,7 +18,7 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
-    let sigma = sigma_client()?;
+    let sigma_client = sigma_client()?;
     let public_url = public_url()?;
     let telegram_bot_username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?;
     let telegram = telegram_bot(telegram_bot_username.clone())?;
@@ -26,7 +27,7 @@ async fn main() -> io::Result<()> {
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
     println!("listening on http://{}", listener.local_addr()?);
     let mut terminate = signal(SignalKind::terminate())?;
-    let (latest, poller) = poller::start(sigma, REFRESH_INTERVAL, Timestamp::now).await;
+    let (latest, poller) = sigma::start(sigma_client, REFRESH_INTERVAL, Timestamp::now).await;
     let mut bot = None;
     let mut notifier = None;
     if let Some(TelegramBot {

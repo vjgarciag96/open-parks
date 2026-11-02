@@ -7,11 +7,11 @@ use super::{
     BotCommand, ChatId, ChatMemberStatus, Client, Message, RequestError, Subscriber, Subscribers,
     UpdateKind, User, text,
 };
-use crate::clock::Clock;
-use crate::database::DatabaseError;
-use crate::error::with_sources;
-use crate::lang::Lang;
-use crate::poller::Latest;
+use crate::core::clock::Clock;
+use crate::core::database::DatabaseError;
+use crate::core::error::with_sources;
+use crate::i18n::Lang;
+use crate::sigma::Latest;
 
 const LONG_POLL: Duration = Duration::from_secs(30);
 const RETRY_AFTER: Duration = Duration::from_secs(5);

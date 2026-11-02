@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use reqwest::{StatusCode, Url};
 
-use super::{DecodeError, decode};
-use crate::forecast::Forecast;
-use crate::http;
+use super::decode::{DecodeError, decode};
+use crate::core::http;
+use crate::park::forecast::Forecast;
 
 const FORECAST_ENDPOINT: &str = "https://api.open-meteo.com/v1/forecast";
 // Retiro's centre.

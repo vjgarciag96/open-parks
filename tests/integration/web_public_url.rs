@@ -1,4 +1,4 @@
-use open_parks::public_url::PublicUrl;
+use open_parks::web::public_url::PublicUrl;
 use reqwest::Url;
 
 #[test]

@@ -9,21 +9,21 @@ use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tokio::sync::watch;
 
-use crate::clock::Clock;
-use crate::headline::{Alerts, Headline};
-use crate::lang::Lang;
-use crate::park_status::{ParkStatus, Verdict};
-use crate::poller::{Fetched, Latest};
-use crate::public_url::PublicUrl;
-use crate::schedule;
-use crate::strings::{Age, Strings};
-use crate::structured_data;
+use crate::core::clock::Clock;
+use crate::i18n::Lang;
+use crate::i18n::{Age, Strings};
+use crate::park::headline::{Alerts, Headline};
+use crate::park::schedule;
+use crate::park::status::{ParkStatus, Verdict};
+use crate::sigma::{Fetched, Latest};
+use crate::web::public_url::PublicUrl;
+use crate::web::structured_data;
 
 mod llms_txt;
 
-const STYLE: &str = include_str!("../assets/page.css");
-const TELEGRAM_LOGO: &str = include_str!("../assets/telegram_logo.svg");
-const FAVICON: &str = include_str!("../assets/favicon.svg");
+const STYLE: &str = include_str!("../../assets/page.css");
+const TELEGRAM_LOGO: &str = include_str!("../../assets/telegram_logo.svg");
+const FAVICON: &str = include_str!("../../assets/favicon.svg");
 
 const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 
@@ -198,7 +198,7 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
     match &*latest.borrow() {
         Ok(fetched) => {
             let alerts = Alerts::Checked(fetched.status.code.verdict());
-            let headline = Headline::new(strings, alerts, &schedule);
+            let headline = Headline::new(alerts, &schedule);
             render(
                 lang,
                 site,
@@ -210,7 +210,7 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
             .into_response()
         }
         Err(error) => {
-            let headline = Headline::new(strings, Alerts::Unchecked, &schedule);
+            let headline = Headline::new(Alerts::Unchecked, &schedule);
             let page = render(
                 lang,
                 site,
@@ -288,6 +288,7 @@ fn render(
     details: Markup,
 ) -> Markup {
     let strings = lang.strings();
+    let answer = strings.answer(headline.answer);
     html! {
         (DOCTYPE)
         html lang=(lang.code()) {
@@ -308,7 +309,7 @@ fn render(
                     meta property="og:url" content=(public_url.of(lang.path()));
                 }
                 meta property="og:type" content="website";
-                meta property="og:title" content={ (strings.question) " " (headline.preview) };
+                meta property="og:title" content={ (strings.question) " " (strings.answer(headline.preview)) };
                 meta property="og:description" content=(strings.description);
                 meta property="og:locale" content=(lang.locale());
                 meta property="og:locale:alternate" content=(lang.other().locale());
@@ -331,19 +332,19 @@ fn render(
                     }
                 }
                 main {
-                    h1.long[headline.answer.chars().count() > LONG_ANSWER_AFTER] {
+                    h1.long[answer.chars().count() > LONG_ANSWER_AFTER] {
                         span.question { (strings.question) }
                         " "
-                        (headline.answer)
+                        (answer)
                     }
-                    @if let Some(schedule) = &headline.schedule {
-                        p.now { (schedule) }
+                    @if let Some(schedule) = headline.schedule {
+                        p.now { (strings.schedule_line(schedule)) }
                     }
                     section.alerts {
                         h2 { (strings.alerts) }
                         p.alert.(tone.class) {
                             span.icon aria-hidden="true" { (tone.icon) }
-                            (headline.alert)
+                            (strings.alert_line(headline.alerts))
                         }
                         (details)
                     }

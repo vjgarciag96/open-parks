@@ -4,14 +4,14 @@ use std::fmt::Write;
 
 use jiff::Timestamp;
 
-use crate::headline::{Alerts, Headline};
-use crate::lang::Lang;
+use crate::i18n::Lang;
+use crate::i18n::Strings;
 use crate::notifier::{Change, Notification};
-use crate::park_status::{ParkStatus, Verdict};
-use crate::poller::Latest;
-use crate::public_url::PublicUrl;
-use crate::schedule::{self, Schedule};
-use crate::strings::Strings;
+use crate::park::headline::{Alerts, Headline};
+use crate::park::schedule::{self, Schedule};
+use crate::park::status::{ParkStatus, Verdict};
+use crate::sigma::Latest;
+use crate::web::public_url::PublicUrl;
 
 /// The answer to /status and the like: the page's headline, each fact
 /// once, then the details when the status could be fetched.
@@ -22,17 +22,19 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
         Err(_) => Alerts::Unchecked,
     };
     let schedule = schedule::retiro(now);
-    let headline = Headline::new(strings, alerts, &schedule);
+    let headline = Headline::new(alerts, &schedule);
     // The page sets the answer, the schedule line and the alert line apart;
     // a message can't, so it gives each fact once, the cause first.
-    let lead = match (&schedule, &headline.schedule) {
-        (Schedule::Closed { .. }, Some(closed_by_schedule)) => closed_by_schedule.as_str(),
+    let lead = match (&schedule, headline.schedule) {
+        (Schedule::Closed { .. }, Some(closed_by_schedule)) => {
+            strings.schedule_line(closed_by_schedule)
+        }
         // The answer, but a weather closure named with its cause.
-        _ => headline.preview,
+        _ => strings.answer(headline.preview).to_owned(),
     };
     let mut text = format!("{}\n{lead}", strings.question);
-    if let (Schedule::Open { .. }, Some(closes_at)) = (&schedule, &headline.schedule) {
-        write!(text, "\n{closes_at}").unwrap();
+    if let (Schedule::Open { .. }, Some(closes_at)) = (&schedule, headline.schedule) {
+        write!(text, "\n{}", strings.schedule_line(closes_at)).unwrap();
     }
     let said = match alerts {
         Alerts::Checked(Verdict::Closed) => true,
@@ -42,7 +44,13 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
         Alerts::Checked(_) => false,
     };
     if !said {
-        write!(text, "\n{}: {}", strings.alerts, headline.alert).unwrap();
+        write!(
+            text,
+            "\n{}: {}",
+            strings.alerts,
+            strings.alert_line(headline.alerts)
+        )
+        .unwrap();
     }
     if let Ok(fetched) = latest {
         write_details(&mut text, strings, &fetched.status);

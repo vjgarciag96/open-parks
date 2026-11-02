@@ -10,11 +10,11 @@ use jiff::{Timestamp, Zoned};
 use serde::{Serialize, Serializer};
 use tokio::sync::watch;
 
-use crate::clock::Clock;
-use crate::park_status::{AlertCode, ReopeningForecast, Verdict};
-use crate::poller::{Fetched, Latest};
-use crate::schedule::{self, Schedule};
+use crate::core::clock::Clock;
+use crate::park::schedule::{self, Schedule};
+use crate::park::status::{AlertCode, ReopeningForecast, Verdict};
 use crate::sigma::FetchError;
+use crate::sigma::{Fetched, Latest};
 
 pub(crate) const RETIRO_STATUS_PATH: &str = "/api/v1/parks/retiro/status";
 
