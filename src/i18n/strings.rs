@@ -1,9 +1,10 @@
 use jiff::SignedDuration;
 use jiff::civil::{Date, Time};
 
-use crate::lang::Lang;
-use crate::park_status::{ParkStatus, ReopeningForecast, Verdict};
-use crate::schedule::Season;
+use super::Lang;
+use crate::park::headline::{Alerts, Answer, ScheduleLine};
+use crate::park::schedule::Season;
+use crate::park::status::{ParkStatus, ReopeningForecast, Verdict};
 
 impl Lang {
     pub(crate) fn strings(self) -> &'static Strings {
@@ -72,6 +73,37 @@ impl Strings {
         ]
         .into_iter()
         .filter_map(|(term, description)| Some((term, description?)))
+    }
+}
+
+impl Strings {
+    pub(crate) fn answer(&self, answer: Answer) -> &'static str {
+        match answer {
+            Answer::Open => self.open,
+            Answer::OpenClosureExpected => self.open_closure_expected,
+            Answer::Unknown => (self.headline)(Verdict::Unknown),
+            Answer::Unchecked => self.upstream_failure,
+            Answer::Closed => self.closed,
+            Answer::ClosedByAlert => (self.headline)(Verdict::Closed),
+            Answer::ClosedBySchedule => self.closed_by_schedule,
+        }
+    }
+
+    pub(crate) fn alert_line(&self, alerts: Alerts) -> &'static str {
+        match alerts {
+            Alerts::Checked(verdict) => (self.alert)(verdict),
+            Alerts::Unchecked => self.alerts_unchecked,
+        }
+    }
+
+    pub(crate) fn schedule_line(&self, line: ScheduleLine) -> String {
+        match line {
+            ScheduleLine::ClosesAt(time) => (self.closes_at)(time),
+            ScheduleLine::ClosedBySchedule => self.closed_by_schedule.to_owned(),
+            ScheduleLine::ClosedUntil(time) => {
+                format!("{}. {}", self.closed_by_schedule, (self.opens_at)(time))
+            }
+        }
     }
 }
 

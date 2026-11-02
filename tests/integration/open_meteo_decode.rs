@@ -1,7 +1,7 @@
 use jiff::Zoned;
 use jiff::civil::DateTime;
-use open_parks::forecast::HourForecast;
 use open_parks::open_meteo::{self, DecodeError};
+use open_parks::park::forecast::HourForecast;
 
 use crate::support::fixtures::open_meteo_fixture;
 

@@ -1,4 +1,4 @@
-use open_parks::database::{Database, DatabaseError};
+use open_parks::core::database::{Database, DatabaseError};
 use tempfile::TempDir;
 
 #[test]

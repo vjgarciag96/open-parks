@@ -1,4 +1,4 @@
-use open_parks::schedule::{self, Schedule};
+use open_parks::park::schedule::{self, Schedule};
 
 fn at(now: &str) -> (&'static str, String) {
     match schedule::retiro(now.parse().unwrap()) {

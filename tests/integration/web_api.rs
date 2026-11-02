@@ -6,9 +6,8 @@ use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
 use jiff::Timestamp;
-use open_parks::api;
-use open_parks::poller::{self, Fetched, Latest};
-use open_parks::sigma;
+use open_parks::sigma::{self, Fetched, Latest};
+use open_parks::web::api;
 use reqwest::Url;
 use serde_json::{Value, json};
 use tokio::sync::watch;
@@ -46,7 +45,7 @@ async fn get_retiro_status(fixture_name: &str) -> Response {
 
 async fn get_retiro_status_from(upstream: Url, timeout: Duration) -> Response {
     let client = sigma::Client::new(upstream, timeout).unwrap();
-    let (latest, _) = poller::start(client, Duration::from_secs(3600), Timestamp::now).await;
+    let (latest, _) = sigma::start(client, Duration::from_secs(3600), Timestamp::now).await;
     get(latest, RETIRO_STATUS).await
 }
 

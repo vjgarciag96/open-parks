@@ -1,12 +1,12 @@
 use jiff::Timestamp;
 use serde_json::{Value, json};
 
-use crate::lang::Lang;
-use crate::public_url::PublicUrl;
-use crate::schedule::{self, Dated};
+use crate::i18n::Lang;
+use crate::park::schedule::{self, Dated};
+use crate::web::public_url::PublicUrl;
 
 // The name, address and coordinates are the Ayuntamiento's, from the page
-// linked in schedule.rs; the Wikidata item is Q1131807, "El Retiro Park".
+// linked in park/schedule.rs; the Wikidata item is Q1131807, "El Retiro Park".
 const OFFICIAL_NAME: &str = "Jardines de El Buen Retiro";
 const WIKIDATA: &str = "https://www.wikidata.org/wiki/Q1131807";
 const LATITUDE: f64 = 40.41964087412762;

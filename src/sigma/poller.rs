@@ -4,9 +4,9 @@ use jiff::{RoundMode, Timestamp, TimestampRound, Unit};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::clock::Clock;
-use crate::error::with_sources;
-use crate::park_status::ParkStatus;
+use crate::core::clock::Clock;
+use crate::core::error::with_sources;
+use crate::park::status::ParkStatus;
 use crate::sigma::{self, FetchError};
 
 /// The last status fetched, or, until one is, why the latest fetch failed.

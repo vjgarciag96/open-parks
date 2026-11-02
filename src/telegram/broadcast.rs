@@ -7,9 +7,9 @@ use tokio::time::Instant;
 
 use super::text::notice;
 use super::{ChatId, Client, RequestError, Subscriber, Subscribers};
-use crate::error::with_sources;
+use crate::core::error::with_sources;
 use crate::notifier::{Channel, Notification};
-use crate::public_url::PublicUrl;
+use crate::web::public_url::PublicUrl;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pace {

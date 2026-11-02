@@ -6,10 +6,9 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::response::IntoResponse;
 use jiff::Timestamp;
-use open_parks::api;
-use open_parks::park_status::AlertCode;
-use open_parks::poller::{self, Latest};
-use open_parks::sigma::{self, FetchError};
+use open_parks::park::status::AlertCode;
+use open_parks::sigma::{self, FetchError, Latest};
+use open_parks::web::api;
 use reqwest::Url;
 use tokio::sync::watch;
 use tower::ServiceExt;
@@ -65,7 +64,7 @@ fn fetch_time() -> Timestamp {
 
 async fn start(url: Url, interval: Duration) -> watch::Receiver<Latest> {
     let client = sigma::Client::new(url, GENEROUS_TIMEOUT).unwrap();
-    poller::start(client, interval, fetch_time).await.0
+    sigma::start(client, interval, fetch_time).await.0
 }
 
 async fn wait_for_code(latest: &mut watch::Receiver<Latest>, code: AlertCode) {
@@ -172,7 +171,7 @@ async fn requests_are_served_without_querying_sigma() {
 async fn polling_stops_once_nothing_reads_the_status() {
     let upstream = Upstream::start(Some(fixture("code_1_open.json"))).await;
     let client = sigma::Client::new(upstream.url.clone(), SHORT_TIMEOUT).unwrap();
-    let (latest, _) = poller::start(client, OFTEN, fetch_time).await;
+    let (latest, _) = sigma::start(client, OFTEN, fetch_time).await;
 
     drop(latest);
     tokio::time::sleep(OFTEN + SHORT_TIMEOUT).await;

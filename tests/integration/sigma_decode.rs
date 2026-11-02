@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use open_parks::park_status::{AlertCode, ParkStatus, ReopeningForecast};
+use open_parks::park::status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::sigma::{self, DecodeError};
 
 use crate::support::fixtures::fixture;

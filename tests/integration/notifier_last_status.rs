@@ -1,6 +1,6 @@
-use open_parks::database::Database;
+use open_parks::core::database::Database;
 use open_parks::notifier::LastStatus;
-use open_parks::park_status::AlertCode;
+use open_parks::park::status::AlertCode;
 use tempfile::TempDir;
 
 fn in_a_fresh_database(directory: &TempDir) -> LastStatus {

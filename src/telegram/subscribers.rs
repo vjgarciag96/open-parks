@@ -1,8 +1,8 @@
 use rusqlite::OptionalExtension;
 
 use super::ChatId;
-use crate::database::{Database, DatabaseError};
-use crate::lang::Lang;
+use crate::core::database::{Database, DatabaseError};
+use crate::i18n::Lang;
 
 #[derive(Clone)]
 pub struct Subscribers {
