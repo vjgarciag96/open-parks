@@ -1,13 +1,16 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use reqwest::Url;
 use serde_json::{Value, json};
 
+use crate::support::fake_open_meteo;
 use crate::support::fake_sigma::serving_json;
-use crate::support::fixtures::fixture;
+use crate::support::fixtures::{fixture, open_meteo_fixture};
+use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 struct Server(Child);
 
@@ -18,12 +21,16 @@ impl Drop for Server {
     }
 }
 
-fn start_server(sigma_query_url: &Url) -> (Server, String) {
-    start_server_with(sigma_query_url, &[])
+fn start_server(sigma_query_url: &Url, open_meteo_url: &Url) -> (Server, String) {
+    start_server_with(sigma_query_url, open_meteo_url, &[])
 }
 
-fn start_server_with(sigma_query_url: &Url, envs: &[(&str, &str)]) -> (Server, String) {
-    let mut child = server_command(sigma_query_url)
+fn start_server_with(
+    sigma_query_url: &Url,
+    open_meteo_url: &Url,
+    envs: &[(&str, &str)],
+) -> (Server, String) {
+    let mut child = server_command(sigma_query_url, open_meteo_url)
         .envs(envs.iter().copied())
         .stdout(Stdio::piped())
         .spawn()
@@ -41,16 +48,24 @@ fn start_server_with(sigma_query_url: &Url, envs: &[(&str, &str)]) -> (Server, S
     (server, address)
 }
 
-fn server_command(sigma_query_url: &Url) -> Command {
+fn server_command(sigma_query_url: &Url, open_meteo_url: &Url) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_open-parks"));
     command
         .env("OPEN_PARKS_ADDRESS", "127.0.0.1:0")
-        .env("OPEN_PARKS_SIGMA_QUERY_URL", sigma_query_url.as_str());
+        .env("OPEN_PARKS_SIGMA_QUERY_URL", sigma_query_url.as_str())
+        .env("OPEN_PARKS_OPEN_METEO_URL", open_meteo_url.as_str());
     command
+}
+
+fn open_meteo_serving_a_forecast(runtime: &tokio::runtime::Runtime) -> Url {
+    runtime.block_on(fake_open_meteo::serving_json(open_meteo_fixture(
+        "retiro.json",
+    )))
 }
 
 fn get(address: &str, path: &str) -> String {
     let mut stream = TcpStream::connect(address).unwrap();
+    stream.set_read_timeout(Some(GENEROUS_TIMEOUT)).unwrap();
     write!(
         stream,
         "GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
@@ -65,7 +80,8 @@ fn get(address: &str, path: &str) -> String {
 fn the_binary_serves_retiros_status_from_sigma_over_http() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let sigma = runtime.block_on(serving_json(fixture("code_7_closed.json")));
-    let (_server, address) = start_server(&sigma);
+    let open_meteo = open_meteo_serving_a_forecast(&runtime);
+    let (_server, address) = start_server(&sigma, &open_meteo);
 
     let response = get(&address, "/api/v1/parks/retiro/status");
 
@@ -96,7 +112,8 @@ fn the_binary_serves_retiros_status_from_sigma_over_http() {
 fn the_binary_serves_retiros_status_page() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let sigma = runtime.block_on(serving_json(fixture("code_7_closed.json")));
-    let (_server, address) = start_server(&sigma);
+    let open_meteo = open_meteo_serving_a_forecast(&runtime);
+    let (_server, address) = start_server(&sigma, &open_meteo);
 
     let response = get(&address, "/es");
 
@@ -109,8 +126,10 @@ fn the_binary_serves_retiros_status_page() {
 fn the_binary_serves_the_sitemap_at_its_public_url() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let open_meteo = open_meteo_serving_a_forecast(&runtime);
     let (_server, address) = start_server_with(
         &sigma,
+        &open_meteo,
         &[("OPEN_PARKS_PUBLIC_URL", "https://retiro.example")],
     );
 
@@ -128,8 +147,9 @@ fn the_binary_serves_the_sitemap_at_its_public_url() {
 fn the_binary_refuses_a_public_url_that_is_not_an_origin() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let open_meteo = open_meteo_serving_a_forecast(&runtime);
 
-    let output = server_command(&sigma)
+    let output = server_command(&sigma, &open_meteo)
         .env("OPEN_PARKS_PUBLIC_URL", "https://retiro.example/es")
         .output()
         .unwrap();
@@ -140,6 +160,38 @@ fn the_binary_refuses_a_public_url_that_is_not_an_origin() {
         stderr.contains("OPEN_PARKS_PUBLIC_URL must be an HTTP(S) origin"),
         "{stderr}"
     );
+}
+
+#[test]
+fn the_binary_polls_retiros_forecast_from_open_meteo() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let (requested, requests) = mpsc::channel();
+    let open_meteo = runtime.block_on(fake_open_meteo::serving(move || {
+        let requested = requested.clone();
+        async move {
+            let _ = requested.send(());
+            fake_open_meteo::json(open_meteo_fixture("retiro.json"))
+        }
+    }));
+
+    let (_server, _) = start_server(&sigma, &open_meteo);
+
+    requests
+        .recv_timeout(GENEROUS_TIMEOUT)
+        .expect("the server never asked Open-Meteo for the forecast");
+}
+
+#[test]
+fn the_binary_serves_the_page_before_the_first_forecast_arrives() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let open_meteo = runtime.block_on(fake_open_meteo::serving(std::future::pending::<()>));
+    let (_server, address) = start_server(&sigma, &open_meteo);
+
+    let response = get(&address, "/es");
+
+    assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
 }
 
 fn terminate(server: &mut Server) -> ExitStatus {
@@ -162,7 +214,8 @@ fn terminate(server: &mut Server) -> ExitStatus {
 fn the_binary_exits_cleanly_on_sigterm() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
-    let (mut server, address) = start_server(&sigma);
+    let open_meteo = open_meteo_serving_a_forecast(&runtime);
+    let (mut server, address) = start_server(&sigma, &open_meteo);
     get(&address, "/api/v1/parks/retiro/status");
 
     assert!(terminate(&mut server).success());

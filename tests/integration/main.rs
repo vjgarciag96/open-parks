@@ -6,6 +6,7 @@ mod notifier;
 mod notifier_last_status;
 mod open_meteo_client;
 mod open_meteo_decode;
+mod open_meteo_poller;
 mod park_schedule;
 mod park_status;
 mod server;
