@@ -8,17 +8,19 @@ use open_parks::notifier::{Channels, LastStatus};
 use open_parks::telegram::{BotToken, Broadcast, Pace, Subscribers};
 use open_parks::web::public_url::PublicUrl;
 use open_parks::web::{api, page};
-use open_parks::{notifier, sigma, telegram};
+use open_parks::{notifier, open_meteo, sigma, telegram};
 use reqwest::Url;
 use tokio::signal::unix::{SignalKind, signal};
 
 const DEFAULT_ADDRESS: &str = "127.0.0.1:3000";
 const REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+const FORECAST_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let address = env_var("OPEN_PARKS_ADDRESS")?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
     let sigma_client = sigma_client()?;
+    let open_meteo_client = open_meteo_client()?;
     let public_url = public_url()?;
     let telegram_bot_username = env_var("OPEN_PARKS_TELEGRAM_BOT_USERNAME")?;
     let telegram = telegram_bot(telegram_bot_username.clone())?;
@@ -27,6 +29,8 @@ async fn main() -> io::Result<()> {
         .map_err(|error| io::Error::new(error.kind(), format!("binding {address}: {error}")))?;
     println!("listening on http://{}", listener.local_addr()?);
     let mut terminate = signal(SignalKind::terminate())?;
+    let (forecast, forecast_poller) =
+        open_meteo::start(open_meteo_client, FORECAST_INTERVAL, Timestamp::now);
     let (latest, poller) = sigma::start(sigma_client, REFRESH_INTERVAL, Timestamp::now).await;
     let mut bot = None;
     let mut notifier = None;
@@ -74,6 +78,10 @@ async fn main() -> io::Result<()> {
     // With the poller stopped the status can't change again, so the
     // notifier finishes once the notifications it already has are sent.
     poller.abort();
+    // Held until now because the forecast poller stops once nothing reads
+    // the forecast, and nothing does yet.
+    forecast_poller.abort();
+    drop(forecast);
     if let Some(bot) = bot {
         bot.abort();
     }
@@ -94,6 +102,18 @@ fn sigma_client() -> io::Result<sigma::Client> {
         None => sigma::Client::live(),
     };
     client.map_err(|error| io::Error::other(format!("building the SIGMA client: {error}")))
+}
+
+fn open_meteo_client() -> io::Result<open_meteo::Client> {
+    let client = match env_var("OPEN_PARKS_OPEN_METEO_URL")? {
+        Some(url) => {
+            let url = Url::parse(&url)
+                .map_err(|error| io::Error::other(format!("OPEN_PARKS_OPEN_METEO_URL: {error}")))?;
+            open_meteo::Client::new(url, open_meteo::Client::TIMEOUT)
+        }
+        None => open_meteo::Client::live(),
+    };
+    client.map_err(|error| io::Error::other(format!("building the Open-Meteo client: {error}")))
 }
 
 fn public_url() -> io::Result<Option<PublicUrl>> {
