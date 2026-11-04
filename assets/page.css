@@ -13,6 +13,8 @@
   --danger: #d70015;
   --danger-halo: #ffe5e7;
   --neutral: #6e6e73;
+  --rain: #0058b0;
+  --soft: rgba(0, 0, 0, 0.04);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +33,8 @@
     --danger: #ff453a;
     --danger-halo: #331314;
     --neutral: #8e8e93;
+    --rain: #64b5ff;
+    --soft: rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -194,6 +198,85 @@ section h2 {
 
 .neutral .icon {
   background: var(--neutral);
+}
+
+.hours {
+  display: flex;
+  margin: 0.6rem 0 0;
+  padding: 0 0 0.5rem;
+  list-style: none;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.hours li {
+  flex: none;
+  box-sizing: border-box;
+  width: 52px;
+  padding: 0.5rem 0;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.hours .current {
+  background: var(--soft);
+}
+
+/* A blank value keeps its row, so the columns stay aligned. */
+.hours span {
+  display: block;
+  min-height: 1.5em;
+  line-height: 1.5;
+}
+
+.hours .hour {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.hours .current .hour {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hours .temperature {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.hours .rain {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--rain);
+}
+
+.hours .gusts {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.legend,
+.forecast-age {
+  font-size: 0.82rem;
+  color: var(--faint);
+}
+
+.legend {
+  padding: 0.2rem 0 1rem;
+}
+
+.legend:has(+ .forecast-age) {
+  padding-bottom: 0.2rem;
+}
+
+.forecast-age {
+  padding-bottom: 1rem;
+}
+
+.unavailable {
+  padding: 0.6rem 0 1rem;
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 
 dl,
