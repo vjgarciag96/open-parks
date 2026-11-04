@@ -1383,8 +1383,8 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
 #[tokio::test]
 async fn the_card_has_a_legend_in_each_language() {
     let cases = [
-        ("/es", "Probabilidad de lluvia · Rachas en km/h"),
-        ("/en", "Rain chance · Gusts in km/h"),
+        ("/es", "Probabilidad de lluvia. Rachas en km/h"),
+        ("/en", "Rain chance. Gusts in km/h"),
     ];
     for (uri, legend) in cases {
         let body =
@@ -1543,7 +1543,7 @@ async fn the_age_note_sits_under_the_legend() {
 
     assert!(
         body.contains(concat!(
-            r#"<p class="legend">Rain chance · Gusts in km/h</p>"#,
+            r#"<p class="legend">Rain chance. Gusts in km/h</p>"#,
             r#"<p class="forecast-age">"#,
         )),
         "{body}"
