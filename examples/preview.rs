@@ -9,6 +9,7 @@ use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
 use jiff::{SignedDuration, Timestamp};
+use open_parks::open_meteo;
 use open_parks::sigma::{self, FetchError};
 use open_parks::sigma::{Fetched, Latest};
 use open_parks::web::page;
@@ -16,18 +17,22 @@ use tokio::sync::watch;
 use tower::ServiceExt;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sigma");
+const FORECAST: &str = include_str!("../tests/fixtures/open_meteo/rain_chances.json");
 const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
 const DETAILED: &str = "code_6_red_alert_restrictions";
 const LANGS: [&str; 2] = ["es", "en"];
 const TELEGRAM_BOT: &str = "retiro_abierto_bot";
 const SCHEMES: [&str; 2] = ["light", "dark"];
 const SCHEMES_HEAD: &str = "<!DOCTYPE html><meta charset=utf-8><style>body{margin:1rem;font-family:system-ui;background:#888}.frames{display:flex;flex-wrap:wrap;gap:12px}iframe{border:0}.phone{width:390px;height:844px;border-radius:12px}.desktop{width:640px;height:400px;overflow:hidden;border-radius:12px}.desktop iframe{width:1280px;height:800px;transform:scale(0.5);transform-origin:0 0}</style>";
-const DAY: &str = "2026-10-11T09:30:00Z";
-const NIGHT: &str = "2026-10-11T21:30:00Z";
+// Inside the forecast fixture's two days.
+const DAY: &str = "2026-11-02T09:30:00Z";
+const NIGHT: &str = "2026-11-02T21:30:00Z";
+const OLD_FORECAST: &str = "2026-11-02T04:30:00Z";
 
 struct Preview {
     name: String,
     latest: Latest,
+    forecast: open_meteo::Latest,
     fetched_at: Timestamp,
     age: SignedDuration,
     telegram_bot_username: Option<&'static str>,
@@ -43,6 +48,7 @@ async fn main() -> std::io::Result<()> {
     for Preview {
         name,
         latest,
+        forecast,
         fetched_at,
         age,
         telegram_bot_username,
@@ -51,7 +57,7 @@ async fn main() -> std::io::Result<()> {
         let now = fetched_at + age;
         let router = page::router(
             watch::channel(latest).1,
-            watch::channel(None).1,
+            watch::channel(forecast).1,
             move || now,
             telegram_bot_username.map(str::to_owned),
             None,
@@ -104,6 +110,7 @@ fn previews() -> std::io::Result<Vec<Preview>> {
                     status: status.clone(),
                     fetched_at,
                 }),
+                forecast: forecast_fetched_at(at),
                 fetched_at,
                 age: SignedDuration::from_mins(minutes),
                 telegram_bot_username,
@@ -116,6 +123,14 @@ fn previews() -> std::io::Result<Vec<Preview>> {
             previews.push(fetched(".stale", DAY, 15, None));
             previews.push(fetched(".2_days_old", DAY, 2 * 24 * 60, None));
             previews.push(fetched(".telegram_bot", DAY, 0, Some(TELEGRAM_BOT)));
+            previews.push(Preview {
+                forecast: forecast_fetched_at(OLD_FORECAST),
+                ..fetched(".old_forecast", DAY, 0, None)
+            });
+            previews.push(Preview {
+                forecast: None,
+                ..fetched(".no_forecast", DAY, 0, None)
+            });
         }
     }
     for (name, error, at, telegram_bot_username) in [
@@ -137,12 +152,20 @@ fn previews() -> std::io::Result<Vec<Preview>> {
         previews.push(Preview {
             name: name.to_owned(),
             latest: Err(error),
+            forecast: forecast_fetched_at(at),
             fetched_at: at.parse().unwrap(),
             age: SignedDuration::ZERO,
             telegram_bot_username,
         });
     }
     Ok(previews)
+}
+
+fn forecast_fetched_at(at: &str) -> open_meteo::Latest {
+    Some(open_meteo::Fetched {
+        forecast: open_meteo::decode(FORECAST).unwrap(),
+        fetched_at: at.parse().unwrap(),
+    })
 }
 
 fn fixtures() -> std::io::Result<Vec<(String, String)>> {
