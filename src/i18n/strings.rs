@@ -31,6 +31,14 @@ pub(crate) struct Strings {
     pub(crate) alerts: &'static str,
     pub(crate) alert: fn(Verdict) -> &'static str,
     pub(crate) alerts_unchecked: &'static str,
+    pub(crate) next_hours: &'static str,
+    pub(crate) hour_now: &'static str,
+    /// The accessible name of the columns that scroll sideways.
+    pub(crate) hourly_forecast: &'static str,
+    pub(crate) forecast_legend: &'static str,
+    pub(crate) forecast_unavailable: &'static str,
+    /// Read before `ago`.
+    pub(crate) forecast_from: &'static str,
     pub(crate) opening_hours: &'static str,
     /// January first.
     pub(crate) months: [&'static str; 12],
@@ -51,6 +59,7 @@ pub(crate) struct Strings {
     pub(crate) source_link: &'static str,
     pub(crate) licence_url: &'static str,
     pub(crate) disclaimer: &'static str,
+    pub(crate) forecast_source_lead: &'static str,
 }
 
 impl Strings {
@@ -178,6 +187,12 @@ const ES: Strings = Strings {
         Verdict::Unknown => "Estado desconocido",
     },
     alerts_unchecked: "No hemos podido consultar si hay alertas",
+    next_hours: "Próximas horas",
+    hour_now: "Ahora",
+    hourly_forecast: "Previsión por horas",
+    forecast_legend: "Probabilidad de lluvia · Rachas en km/h",
+    forecast_unavailable: "La previsión no está disponible.",
+    forecast_from: "Previsión de ",
     opening_hours: "Horario",
     months: [
         "Enero",
@@ -226,6 +241,7 @@ const ES: Strings = Strings {
     source_link: "datos del Ayuntamiento de Madrid",
     licence_url: "https://creativecommons.org/licenses/by/4.0/deed.es",
     disclaimer: "Esta web interpreta esos datos y no está vinculada al Ayuntamiento ni avalada por él.",
+    forecast_source_lead: "Previsión de ",
 };
 
 const EN: Strings = Strings {
@@ -261,6 +277,12 @@ const EN: Strings = Strings {
         Verdict::Unknown => "Status unknown",
     },
     alerts_unchecked: "We couldn’t check for weather alerts",
+    next_hours: "Next hours",
+    hour_now: "Now",
+    hourly_forecast: "Hourly forecast",
+    forecast_legend: "Rain chance · Gusts in km/h",
+    forecast_unavailable: "The forecast isn’t available.",
+    forecast_from: "Forecast from ",
     opening_hours: "Hours",
     months: [
         "January",
@@ -312,4 +334,5 @@ const EN: Strings = Strings {
     source_link: "data from Madrid City Council (Ayuntamiento de Madrid)",
     licence_url: "https://creativecommons.org/licenses/by/4.0/deed.en",
     disclaimer: "This site interprets that data and is not affiliated with or endorsed by the City Council.",
+    forecast_source_lead: "Forecast from ",
 };

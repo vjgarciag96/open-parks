@@ -51,6 +51,7 @@ async fn main() -> std::io::Result<()> {
         let now = fetched_at + age;
         let router = page::router(
             watch::channel(latest).1,
+            watch::channel(None).1,
             move || now,
             telegram_bot_username.map(str::to_owned),
             None,

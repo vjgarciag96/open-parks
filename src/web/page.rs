@@ -12,6 +12,7 @@ use tokio::sync::watch;
 use crate::core::clock::Clock;
 use crate::i18n::Lang;
 use crate::i18n::{Age, Strings};
+use crate::open_meteo;
 use crate::park::headline::{Alerts, Headline};
 use crate::park::schedule;
 use crate::park::status::{ParkStatus, Verdict};
@@ -20,6 +21,7 @@ use crate::web::public_url::PublicUrl;
 use crate::web::structured_data;
 
 mod llms_txt;
+mod next_hours;
 
 const STYLE: &str = include_str!("../../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../../assets/telegram_logo.svg");
@@ -30,6 +32,7 @@ const STALE_AFTER: SignedDuration = SignedDuration::from_mins(10);
 const WIDE_AFTER: usize = 32;
 const LONG_ANSWER_AFTER: usize = 12;
 
+const FORECAST_SOURCE_URL: &str = "https://open-meteo.com/";
 const SOURCE_URL: &str = "https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&vgnextlocale=es";
 
 fn alternates(public_url: &PublicUrl) -> impl Iterator<Item = (&'static str, String)> {
@@ -47,11 +50,13 @@ struct Site {
 #[derive(Clone)]
 struct PageState {
     latest: watch::Receiver<Latest>,
+    forecast: watch::Receiver<open_meteo::Latest>,
     site: Arc<Site>,
 }
 
 pub fn router(
     latest: watch::Receiver<Latest>,
+    forecast: watch::Receiver<open_meteo::Latest>,
     clock: impl Clock,
     telegram_bot_username: Option<String>,
     public_url: Option<PublicUrl>,
@@ -83,6 +88,7 @@ pub fn router(
         .route("/favicon.svg", get(async || favicon()))
         .with_state(PageState {
             latest,
+            forecast,
             site: Arc::new(Site {
                 telegram_bot_username,
                 public_url,
@@ -192,9 +198,18 @@ fn quality(params: &str) -> Option<f32> {
     }
 }
 
-fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timestamp) -> Response {
+fn retiro_status(
+    PageState {
+        latest,
+        forecast,
+        site,
+    }: &PageState,
+    lang: Lang,
+    now: Timestamp,
+) -> Response {
     let strings = lang.strings();
     let schedule = schedule::retiro(now);
+    let next_hours = next_hours::card(strings, &forecast.borrow(), now);
     match &*latest.borrow() {
         Ok(fetched) => {
             let alerts = Alerts::Checked(fetched.status.code.verdict());
@@ -206,6 +221,7 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
                 &headline,
                 tone(alerts),
                 details(strings, fetched, now),
+                next_hours,
             )
             .into_response()
         }
@@ -218,6 +234,7 @@ fn retiro_status(PageState { latest, site }: &PageState, lang: Lang, now: Timest
                 &headline,
                 tone(Alerts::Unchecked),
                 html! {},
+                next_hours,
             );
             (error.gateway_status(), page).into_response()
         }
@@ -286,6 +303,7 @@ fn render(
     headline: &Headline,
     tone: Tone,
     details: Markup,
+    next_hours: Markup,
 ) -> Markup {
     let strings = lang.strings();
     let answer = strings.answer(headline.answer);
@@ -348,6 +366,7 @@ fn render(
                         }
                         (details)
                     }
+                    (next_hours)
                     section.schedule {
                         h2 { (strings.opening_hours) }
                         table.opening-hours {
@@ -379,6 +398,12 @@ fn render(
                     a href=(strings.licence_url) { "CC BY 4.0" }
                     "). "
                     (strings.disclaimer)
+                    " "
+                    (strings.forecast_source_lead)
+                    a href=(FORECAST_SOURCE_URL) { "Open-Meteo" }
+                    " ("
+                    a href=(strings.licence_url) { "CC BY 4.0" }
+                    ")."
                 }
             }
         }

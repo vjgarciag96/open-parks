@@ -194,6 +194,24 @@ fn the_binary_serves_the_page_before_the_first_forecast_arrives() {
     assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
 }
 
+#[test]
+fn the_binary_keeps_the_page_ok_while_the_forecast_fails() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let sigma = runtime.block_on(serving_json(fixture("code_1_open.json")));
+    let open_meteo = runtime.block_on(fake_open_meteo::serving(|| async {
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    }));
+    let (_server, address) = start_server(&sigma, &open_meteo);
+
+    let response = get(&address, "/en");
+
+    assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
+    assert!(
+        response.contains("The forecast isn’t available."),
+        "{response}"
+    );
+}
+
 fn terminate(server: &mut Server) -> ExitStatus {
     let status = Command::new("kill")
         .args(["-TERM", &server.0.id().to_string()])

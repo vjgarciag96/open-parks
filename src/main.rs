@@ -63,6 +63,7 @@ async fn main() -> io::Result<()> {
     }
     let app = api::router(latest.clone(), Timestamp::now).merge(page::router(
         latest,
+        forecast,
         Timestamp::now,
         telegram_bot_username,
         public_url,
@@ -78,10 +79,7 @@ async fn main() -> io::Result<()> {
     // With the poller stopped the status can't change again, so the
     // notifier finishes once the notifications it already has are sent.
     poller.abort();
-    // Held until now because the forecast poller stops once nothing reads
-    // the forecast, and nothing does yet.
     forecast_poller.abort();
-    drop(forecast);
     if let Some(bot) = bot {
         bot.abort();
     }

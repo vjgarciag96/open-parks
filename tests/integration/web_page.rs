@@ -3,15 +3,17 @@ use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
 use jiff::Timestamp;
-use open_parks::sigma;
+use jiff::civil::date;
+use open_parks::park::forecast::{Forecast, HourForecast};
 use open_parks::sigma::{Fetched, Latest};
 use open_parks::web::page;
 use open_parks::web::public_url::PublicUrl;
+use open_parks::{open_meteo, sigma};
 use reqwest::Url;
 use tokio::sync::watch;
 use tower::ServiceExt;
 
-use crate::support::fixtures::fixture;
+use crate::support::fixtures::{fixture, open_meteo_fixture};
 
 const FETCHED_AT: &str = "2026-10-11T09:30:00Z";
 const PUBLIC_URL: &str = "https://retiro.example";
@@ -34,6 +36,7 @@ async fn send_to(
 ) -> Response {
     page::router(
         watch::channel(latest).1,
+        watch::channel(None).1,
         move || now,
         telegram_bot_username.map(str::to_owned),
         public_url.map(public),
@@ -843,13 +846,30 @@ async fn each_page_shows_the_parks_hours_in_both_seasons() {
 }
 
 #[tokio::test]
-async fn the_parks_hours_follow_the_alerts() {
-    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
+async fn the_next_hours_card_sits_between_the_alerts_and_the_parks_hours() {
+    let cases = [
+        (
+            "/es",
+            concat!(
+                r#"</span></p></section><section class="next-hours"><h2>Próximas horas</h2>"#,
+                r#"<p class="unavailable">La previsión no está disponible.</p></section>"#,
+                r#"<section class="schedule">"#,
+            ),
+        ),
+        (
+            "/en",
+            concat!(
+                r#"</span></p></section><section class="next-hours"><h2>Next hours</h2>"#,
+                r#"<p class="unavailable">The forecast isn’t available.</p></section>"#,
+                r#"<section class="schedule">"#,
+            ),
+        ),
+    ];
+    for (uri, expected) in cases {
+        let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), uri).await).await;
 
-    assert!(
-        body.contains(r#"</span></p></section><section class="schedule">"#),
-        "{body}"
-    );
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
 }
 
 #[tokio::test]
@@ -1277,4 +1297,338 @@ async fn llms_txt_links_relatively_without_a_public_url_and_skips_a_missing_bot(
         "{body}"
     );
     assert!(!body.contains("Telegram"), "{body}");
+}
+
+const FORECAST_FETCHED_AT: &str = "2026-11-02T09:15:00+01:00";
+
+fn forecast(fixture_name: &str) -> open_meteo::Latest {
+    Some(open_meteo::Fetched {
+        forecast: open_meteo::decode(&open_meteo_fixture(fixture_name)).unwrap(),
+        fetched_at: FORECAST_FETCHED_AT.parse().unwrap(),
+    })
+}
+
+fn forecast_of(hour: HourForecast) -> open_meteo::Latest {
+    Some(open_meteo::Fetched {
+        forecast: Forecast { hours: vec![hour] },
+        fetched_at: FORECAST_FETCHED_AT.parse().unwrap(),
+    })
+}
+
+fn hour_at_nine() -> HourForecast {
+    HourForecast {
+        at: date(2026, 11, 2)
+            .at(9, 0, 0, 0)
+            .to_zoned(jiff::tz::get!("Europe/Madrid"))
+            .unwrap(),
+        temperature: Some(7.3),
+        weather_code: Some(0),
+        is_day: Some(true),
+        rain_chance: Some(70),
+        gusts: Some(16.6),
+    }
+}
+
+async fn get_with_forecast(
+    latest: Latest,
+    forecast: open_meteo::Latest,
+    now: &str,
+    uri: &str,
+) -> Response {
+    let now: Timestamp = now.parse().unwrap();
+    page::router(
+        watch::channel(latest).1,
+        watch::channel(forecast).1,
+        move || now,
+        None,
+        None,
+    )
+    .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+    .await
+    .unwrap()
+}
+
+async fn body_with_forecast(forecast: open_meteo::Latest, now: &str, uri: &str) -> String {
+    text_body(get_with_forecast(fetched("code_1_open.json"), forecast, now, uri).await).await
+}
+
+#[tokio::test]
+async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_now() {
+    let body = body_with_forecast(
+        forecast("rain_chances.json"),
+        "2026-11-02T09:30:00+01:00",
+        "/en",
+    )
+    .await;
+
+    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
+    let first = concat!(
+        r#"<ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
+        r#"<li class="current"><span class="hour">Now</span><span class="temperature">7°</span>"#,
+        r#"<span class="rain">70%</span><span class="gusts">17</span></li>"#,
+    );
+    let second = concat!(
+        r#"<span class="hour">10:00</span><span class="temperature">11°</span>"#,
+        r#"<span class="rain">77%</span><span class="gusts">24</span></li>"#,
+    );
+    let last = concat!(
+        r#"<span class="hour">20:00</span><span class="temperature">14°</span>"#,
+        r#"<span class="rain">46%</span><span class="gusts">6</span></li></ol>"#,
+    );
+    for expected in [first, second, last] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_card_has_a_legend_in_each_language() {
+    let cases = [
+        ("/es", "Probabilidad de lluvia · Rachas en km/h"),
+        ("/en", "Rain chance · Gusts in km/h"),
+    ];
+    for (uri, legend) in cases {
+        let body =
+            body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", uri).await;
+
+        assert!(
+            body.contains(&format!(r#"</ol><p class="legend">{legend}</p>"#)),
+            "{uri}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_current_hour_is_labelled_now_in_spanish() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", "/es").await;
+
+    assert!(
+        body.contains(r#"<li class="current"><span class="hour">Ahora</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_hour_after_midnight_is_in_madrid_time() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T23:30:00+01:00", "/en").await;
+
+    assert!(body.contains(r#"<span class="hour">0:00</span>"#), "{body}");
+}
+
+#[tokio::test]
+async fn a_missing_value_leaves_its_cell_blank() {
+    let hour = HourForecast {
+        temperature: None,
+        rain_chance: None,
+        gusts: None,
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<span class="temperature"></span>"#,
+            r#"<span class="rain"></span>"#,
+            r#"<span class="gusts"></span>"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_rain_chance_of_zero_is_shown_rather_than_left_blank() {
+    let hour = HourForecast {
+        rain_chance: Some(0),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(body.contains(r#"<span class="rain">0%</span>"#), "{body}");
+}
+
+#[tokio::test]
+async fn a_temperature_just_below_zero_rounds_to_zero_without_a_sign() {
+    let hour = HourForecast {
+        temperature: Some(-0.4),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="temperature">0°</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_temperature_below_zero_keeps_its_sign() {
+    let hour = HourForecast {
+        temperature: Some(-0.6),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="temperature">-1°</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_card_says_the_forecast_is_unavailable_before_the_first_one_arrives() {
+    let body = body_with_forecast(None, "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<p class="unavailable">The forecast isn’t available.</p>"#),
+        "{body}"
+    );
+    assert!(!body.contains("<ol"), "{body}");
+    assert!(!body.contains(r#"class="legend""#), "{body}");
+}
+
+#[tokio::test]
+async fn the_card_says_the_forecast_is_unavailable_when_no_hour_contains_now() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-04T00:00:00+01:00", "/es").await;
+
+    assert!(
+        body.contains(r#"<p class="unavailable">La previsión no está disponible.</p>"#),
+        "{body}"
+    );
+    assert!(!body.contains("<ol"), "{body}");
+    assert!(!body.contains("Previsión de hace"), "{body}");
+}
+
+#[tokio::test]
+async fn a_forecast_three_hours_old_shows_no_age() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T12:15:00+01:00", "/en").await;
+
+    assert!(body.contains("<ol"), "{body}");
+    assert!(!body.contains(r#"class="forecast-age""#), "{body}");
+}
+
+#[tokio::test]
+async fn a_forecast_over_three_hours_old_shows_its_columns_and_its_age() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T14:15:00+01:00", "/en").await;
+
+    assert!(body.contains(r#"<span class="hour">Now</span>"#), "{body}");
+    assert!(
+        body.contains(r#"<p class="forecast-age">Forecast from 5 hours ago</p>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_age_of_an_old_forecast_is_shown_in_spanish() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T14:15:00+01:00", "/es").await;
+
+    assert!(
+        body.contains(r#"<p class="forecast-age">Previsión de hace 5 horas</p>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_age_note_sits_under_the_legend() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T14:15:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<p class="legend">Rain chance · Gusts in km/h</p>"#,
+            r#"<p class="forecast-age">"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn an_old_forecast_has_fewer_columns_once_its_data_runs_out() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-03T21:15:00+01:00", "/en").await;
+
+    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 3, "{body}");
+}
+
+#[tokio::test]
+async fn the_status_is_the_same_with_and_without_a_forecast() {
+    let now = "2026-11-02T09:30:00+01:00";
+    let open = get_with_forecast(fetched("code_1_open.json"), None, now, "/es").await;
+    let open_with_forecast = get_with_forecast(
+        fetched("code_1_open.json"),
+        forecast("retiro.json"),
+        now,
+        "/es",
+    )
+    .await;
+
+    assert_eq!(open.status(), StatusCode::OK);
+    assert_eq!(open_with_forecast.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_failing_status_keeps_its_gateway_status_with_and_without_a_forecast() {
+    let now = "2026-11-02T09:30:00+01:00";
+    let without = get_with_forecast(Err(sigma::FetchError::Timeout), None, now, "/es").await;
+    let with = get_with_forecast(
+        Err(sigma::FetchError::Timeout),
+        forecast("retiro.json"),
+        now,
+        "/es",
+    )
+    .await;
+
+    assert_eq!(without.status(), StatusCode::GATEWAY_TIMEOUT);
+    assert_eq!(with.status(), StatusCode::GATEWAY_TIMEOUT);
+}
+
+#[tokio::test]
+async fn the_card_still_shows_the_forecast_when_the_status_fails() {
+    let response = get_with_forecast(
+        Err(sigma::FetchError::Timeout),
+        forecast("retiro.json"),
+        "2026-11-02T09:30:00+01:00",
+        "/en",
+    )
+    .await;
+
+    let body = text_body(response).await;
+    assert!(body.contains(r#"<span class="hour">Now</span>"#), "{body}");
+}
+
+#[tokio::test]
+async fn the_footer_credits_open_meteo_after_the_disclaimer_under_its_licence() {
+    let cases = [
+        (
+            "/es",
+            concat!(
+                "avalada por él. Previsión de ",
+                r#"<a href="https://open-meteo.com/">Open-Meteo</a> ("#,
+                r#"<a href="https://creativecommons.org/licenses/by/4.0/deed.es">CC BY 4.0</a>)."#,
+                "</footer>",
+            ),
+        ),
+        (
+            "/en",
+            concat!(
+                "endorsed by the City Council. Forecast from ",
+                r#"<a href="https://open-meteo.com/">Open-Meteo</a> ("#,
+                r#"<a href="https://creativecommons.org/licenses/by/4.0/deed.en">CC BY 4.0</a>)."#,
+                "</footer>",
+            ),
+        ),
+    ];
+    for (uri, credit) in cases {
+        let body = body_with_forecast(None, "2026-11-02T09:30:00+01:00", uri).await;
+
+        assert!(body.contains(credit), "{uri}: {body}");
+    }
 }
