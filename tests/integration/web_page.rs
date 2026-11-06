@@ -718,6 +718,16 @@ async fn an_open_park_shows_no_incident_dates() {
 }
 
 #[tokio::test]
+async fn an_open_park_shows_no_incident_hours() {
+    // code_1_open_with_hours.json carries hours, as SIGMA can send with no
+    // incident.
+    let body = text_body(get(fetched("code_1_open_with_hours.json"), "/es").await).await;
+
+    assert!(!body.contains("03:00 a 12:00"), "{body}");
+    assert!(!body.contains("<dl>"), "{body}");
+}
+
+#[tokio::test]
 async fn a_status_without_details_shows_no_details_list() {
     let body = text_body(get(fetched("blank_strings.json"), "/es").await).await;
 

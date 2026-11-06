@@ -13,7 +13,12 @@ Captured from the live layer on 2026-10-10:
 - `error_body.json`: the body returned (with status 200) for an invalid
   `where` clause.
 
-Every park reported code 1 on the capture date, so the rest are hand-edited
+Captured from the live layer on 2026-11-06:
+
+- `code_1_open_with_hours.json`: Retiro's query, with incident hours under
+  code 1.
+
+Every park reported code 1 on the first capture date, so the rest are hand-edited
 copies of the captures above:
 
 - `code_2_incidents.json` to `code_7_closed.json`: one per alert code.
@@ -27,10 +32,10 @@ copies of the captures above:
 
 ## Caveats
 
-The dates, hours and notes in the hand-edited fixtures are invented. Real
-formats for `FECHA_INCIDENCIA` ranges and `HORARIO_INCIDENCIA` are unknown, so
-don't design their parsing from these files; capture a real response first and
-add it here.
+The dates, hours and notes in the hand-edited fixtures are invented. The real
+format for `FECHA_INCIDENCIA` ranges is unknown, and `HORARIO_INCIDENCIA` has
+only been seen as `03:00 a 12:00`, so don't design their parsing from these
+files; capture a real response first and add it here.
 
 Each file keeps the full response, including the `fields` metadata that
 `decode` ignores, so it reads exactly like what SIGMA sends.

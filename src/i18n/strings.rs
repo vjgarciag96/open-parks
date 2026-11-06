@@ -67,16 +67,16 @@ impl Strings {
         &self,
         status: &'a ParkStatus,
     ) -> impl Iterator<Item = (&'static str, &'a str)> {
-        // SIGMA fills in the dates even with no incident, with what looks
-        // like the day of its last bulletin, which reads as an unexplained
-        // date under an open park.
-        let dates = match status.code.verdict() {
-            Verdict::Open => None,
-            _ => status.dates.as_deref(),
+        // SIGMA can fill in the dates and hours even with no incident, with
+        // what looks like its last bulletin, which reads as an unexplained
+        // incident under an open park.
+        let (dates, hours) = match status.code.verdict() {
+            Verdict::Open => (None, None),
+            _ => (status.dates.as_deref(), status.hours.as_deref()),
         };
         [
             (self.dates, dates),
-            (self.incident_hours, status.hours.as_deref()),
+            (self.incident_hours, hours),
             (self.reopening, status.reopening.map(self.forecast)),
             (self.notes, status.notes.as_deref()),
         ]

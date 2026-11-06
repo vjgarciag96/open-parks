@@ -22,6 +22,22 @@ fn open_park_decodes_with_its_date_and_no_other_details() {
 }
 
 #[test]
+fn no_alert_can_still_decode_incident_hours() {
+    let status = sigma::decode(&fixture("code_1_open_with_hours.json")).unwrap();
+
+    assert_eq!(
+        status,
+        ParkStatus {
+            code: AlertCode::Open,
+            dates: Some("05/11/2026".to_owned()),
+            hours: Some("03:00 a 12:00".to_owned()),
+            reopening: None,
+            notes: None,
+        }
+    );
+}
+
+#[test]
 fn red_alert_closure_decodes_reopening_after_inspections() {
     let status = sigma::decode(&fixture("code_5_red_alert_closure.json")).unwrap();
 
