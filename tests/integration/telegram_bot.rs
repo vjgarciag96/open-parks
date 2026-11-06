@@ -439,11 +439,11 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
 }
 
 #[tokio::test]
-async fn status_leaves_out_the_dates_sigma_sends_while_the_park_is_open() {
+async fn status_leaves_out_the_dates_and_hours_sigma_sends_while_the_park_is_open() {
     let bot = Bot::start(fetched(ParkStatus {
         code: AlertCode::Open,
-        dates: Some("01/11/2026".to_owned()),
-        hours: None,
+        dates: Some("05/11/2026".to_owned()),
+        hours: Some("03:00 a 12:00".to_owned()),
         reopening: None,
         notes: None,
     }))

@@ -197,7 +197,7 @@ async fn the_wording_tells_a_closure_forecast_an_escalation_and_a_reopening_apar
 async fn a_reopening_in_spanish_gives_the_hours() {
     let mut delivery = Delivery::start(&[subscriber(1, Lang::Es)]).await;
 
-    let mut reopening = change(Verdict::Closed, AlertCode::Open);
+    let mut reopening = change(Verdict::Closed, AlertCode::YellowAlert);
     reopening.status.hours = Some("de 14:00 a 20:00 h".to_owned());
 
     delivery.send(reopening).await;
@@ -207,8 +207,28 @@ async fn a_reopening_in_spanish_gives_the_hours() {
         [message(
             1,
             "El Retiro ha vuelto a abrir.\n\
-             Abierto\n\n\
+             Abierto con restricciones\n\n\
              Horario de la incidencia: de 14:00 a 20:00 h\n\n\
+             https://retiro.example/es"
+        )]
+    );
+}
+
+#[tokio::test]
+async fn a_reopening_with_no_alert_leaves_out_the_hours() {
+    let mut delivery = Delivery::start(&[subscriber(1, Lang::Es)]).await;
+
+    let mut reopening = change(Verdict::Closed, AlertCode::Open);
+    reopening.status.hours = Some("03:00 a 12:00".to_owned());
+
+    delivery.send(reopening).await;
+
+    assert_eq!(
+        delivery.sent(),
+        [message(
+            1,
+            "El Retiro ha vuelto a abrir.\n\
+             Abierto\n\n\
              https://retiro.example/es"
         )]
     );
