@@ -21,3 +21,4 @@ mod telegram_client;
 mod web_api;
 mod web_page;
 mod web_public_url;
+mod web_weather_icon;
