@@ -176,8 +176,8 @@ fn forecast_fetched_at(at: &str) -> open_meteo::Latest {
     })
 }
 
-/// The forecast with a value left out in each of the hours after 10:00,
-/// as Open-Meteo might send it.
+/// The forecast with one value left out in each hour from 11:00 to 16:00,
+/// or at 13:00 a weather code with no icon, as Open-Meteo might send it.
 fn missing_values_fetched_at(at: &str) -> open_meteo::Latest {
     let mut latest = forecast_fetched_at(at);
     for hour in &mut latest.as_mut().unwrap().forecast.hours {

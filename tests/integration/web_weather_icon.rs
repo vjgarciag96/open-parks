@@ -29,7 +29,9 @@ fn every_icon_file_is_shown_for_some_weather() {
 
     let files: BTreeSet<String> = fs::read_dir(ICONS)
         .unwrap()
-        .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "svg"))
+        .map(|path| fs::read_to_string(path).unwrap())
         .collect();
 
     assert_eq!(files.len(), 36, "icon files");
