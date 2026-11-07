@@ -1339,6 +1339,16 @@ fn hour_at_nine() -> HourForecast {
     }
 }
 
+fn hour_at(year: i16, month: i8, day: i8, hour: i8) -> HourForecast {
+    HourForecast {
+        at: date(year, month, day)
+            .at(hour, 0, 0, 0)
+            .to_zoned(jiff::tz::get!("Europe/Madrid"))
+            .unwrap(),
+        ..hour_at_nine()
+    }
+}
+
 async fn get_with_forecast(
     latest: Latest,
     forecast: open_meteo::Latest,
@@ -1429,6 +1439,76 @@ async fn the_opening_hour_is_in_madrid_time() {
         ),
         "{body}"
     );
+}
+
+#[tokio::test]
+async fn the_night_shows_as_one_closed_block_before_the_next_days_first_hour_in_each_language() {
+    let cases = [
+        (
+            "/es",
+            r#"<li class="closed">Cerrado 22–6</li><li class=""><span class="day">mar</span><span class="hour">6:00</span>"#,
+        ),
+        (
+            "/en",
+            r#"<li class="closed">Closed 22–6</li><li class=""><span class="day">Tue</span><span class="hour">6:00</span>"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let body =
+            body_with_forecast(forecast("retiro.json"), "2026-11-02T20:30:00+01:00", uri).await;
+
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_closed_block_does_not_count_towards_the_twelve_hours() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T20:30:00+01:00", "/en").await;
+
+    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
+}
+
+#[tokio::test]
+async fn only_the_first_hour_of_the_next_day_shows_the_day() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T20:30:00+01:00", "/en").await;
+
+    assert_eq!(body.matches(r#"<span class="day">"#).count(), 1, "{body}");
+}
+
+#[tokio::test]
+async fn the_summer_night_shows_as_a_block_from_midnight() {
+    let forecast = Some(open_meteo::Fetched {
+        forecast: Forecast {
+            hours: vec![hour_at(2026, 7, 3, 23), hour_at(2026, 7, 4, 6)],
+        },
+        fetched_at: "2026-07-03T22:00:00+02:00".parse().unwrap(),
+    });
+
+    let body = body_with_forecast(forecast, "2026-07-03T23:10:00+02:00", "/en").await;
+
+    assert!(
+        body.contains(
+            r#"<li class="closed">Closed 0–6</li><li class=""><span class="day">Sat</span>"#
+        ),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn while_closed_the_card_starts_at_opening_time_with_no_now() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T23:00:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"aria-label="Hourly forecast"><li class="">"#,
+            r#"<span class="day">Tue</span><span class="hour">6:00</span>"#,
+        )),
+        "{body}"
+    );
+    assert!(!body.contains(r#"<span class="hour">Now</span>"#), "{body}");
 }
 
 #[tokio::test]

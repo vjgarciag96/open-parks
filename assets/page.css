@@ -222,6 +222,39 @@ section h2 {
   background: var(--soft);
 }
 
+/* Wide enough for "Closed" and its hours on two lines. */
+.hours .closed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  margin: 0 4px;
+  padding: 0.5rem 0.3rem;
+  background: var(--soft);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* The day sits above its column, so the values stay in line with the
+   other columns'. */
+.hours:has(.day) {
+  padding-top: 1.5em;
+}
+
+.hours li:has(.day) {
+  position: relative;
+}
+
+.hours .day {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* A blank value keeps its row, so the columns stay aligned. */
 .hours span {
   display: block;

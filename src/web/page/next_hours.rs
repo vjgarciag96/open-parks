@@ -1,4 +1,4 @@
-use jiff::{SignedDuration, Timestamp};
+use jiff::{SignedDuration, Timestamp, Zoned};
 use maud::{Markup, html};
 
 use crate::i18n::{Age, Strings};
@@ -18,8 +18,9 @@ pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timest
             @if let (Some(fetched), false) = (forecast, hours.is_empty()) {
                 ol.hours tabindex="0" aria-label=(strings.hourly_forecast) {
                     @for item in &hours {
-                        @if let NextHour::Open { hour, label } = item {
-                            (column(strings, hour, *label == HourLabel::Now))
+                        @match item {
+                            NextHour::Open { hour, label } => (column(strings, hour, *label)),
+                            NextHour::Closed { from, until } => (closed_block(strings, from, until)),
                         }
                     }
                 }
@@ -32,11 +33,14 @@ pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timest
     }
 }
 
-fn column(strings: &Strings, hour: &HourForecast, current: bool) -> Markup {
+fn column(strings: &Strings, hour: &HourForecast, label: HourLabel) -> Markup {
     html! {
-        li.current[current] {
+        li.current[label == HourLabel::Now] {
+            @if label == HourLabel::DayAndTime {
+                span.day { (strings.weekday(hour.at.weekday())) }
+            }
             span.hour {
-                @if current {
+                @if label == HourLabel::Now {
                     (strings.hour_now)
                 } @else {
                     (hour.at.hour()) ":00"
@@ -58,6 +62,12 @@ fn column(strings: &Strings, hour: &HourForecast, current: bool) -> Markup {
                 }
             }
         }
+    }
+}
+
+fn closed_block(strings: &Strings, from: &Zoned, until: &Zoned) -> Markup {
+    html! {
+        li.closed { ((strings.closed_block)(from.hour(), until.hour())) }
     }
 }
 

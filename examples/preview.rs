@@ -26,6 +26,7 @@ const SCHEMES: [&str; 2] = ["light", "dark"];
 const SCHEMES_HEAD: &str = "<!DOCTYPE html><meta charset=utf-8><style>body{margin:1rem;font-family:system-ui;background:#888}.frames{display:flex;flex-wrap:wrap;gap:12px}iframe{border:0}.phone{width:390px;height:844px;border-radius:12px}.desktop{width:640px;height:400px;overflow:hidden;border-radius:12px}.desktop iframe{width:1280px;height:800px;transform:scale(0.5);transform-origin:0 0}</style>";
 // Inside the forecast fixture's two days.
 const DAY: &str = "2026-11-02T09:30:00Z";
+const EVENING: &str = "2026-11-02T19:30:00Z";
 const NIGHT: &str = "2026-11-02T21:30:00Z";
 const OLD_FORECAST: &str = "2026-11-02T04:30:00Z";
 
@@ -119,6 +120,7 @@ fn previews() -> std::io::Result<Vec<Preview>> {
         previews.push(fetched("", DAY, 0, None));
         previews.push(fetched(".night", NIGHT, 0, None));
         if name == DETAILED {
+            previews.push(fetched(".evening", EVENING, 0, None));
             previews.push(fetched(".5_minutes_old", DAY, 5, None));
             previews.push(fetched(".stale", DAY, 15, None));
             previews.push(fetched(".2_days_old", DAY, 2 * 24 * 60, None));
