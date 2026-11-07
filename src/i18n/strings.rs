@@ -1,5 +1,5 @@
 use jiff::SignedDuration;
-use jiff::civil::{Date, Time};
+use jiff::civil::{Date, Time, Weekday};
 
 use super::Lang;
 use crate::park::headline::{Alerts, Answer, ScheduleLine};
@@ -33,6 +33,10 @@ pub(crate) struct Strings {
     pub(crate) alerts_unchecked: &'static str,
     pub(crate) next_hours: &'static str,
     pub(crate) hour_now: &'static str,
+    /// The hours the park closes and opens at, 0 for midnight.
+    pub(crate) closed_block: fn(i8, i8) -> String,
+    /// Short names, Monday first.
+    pub(crate) weekdays: [&'static str; 7],
     /// The accessible name of the columns that scroll sideways.
     pub(crate) hourly_forecast: &'static str,
     pub(crate) forecast_legend: &'static str,
@@ -120,6 +124,11 @@ impl Strings {
     pub(crate) fn month(&self, month: i8) -> &'static str {
         self.months[usize::try_from(month - 1).expect("months start at 1")]
     }
+
+    pub(crate) fn weekday(&self, weekday: Weekday) -> &'static str {
+        self.weekdays
+            [usize::try_from(weekday.to_monday_zero_offset()).expect("weekdays start at 0")]
+    }
 }
 
 fn hours_and_minutes(time: Time) -> String {
@@ -189,6 +198,8 @@ const ES: Strings = Strings {
     alerts_unchecked: "No hemos podido consultar si hay alertas",
     next_hours: "Próximas horas",
     hour_now: "Ahora",
+    closed_block: |closes, opens| format!("Cerrado {closes}–{opens}"),
+    weekdays: ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
     hourly_forecast: "Previsión por horas",
     forecast_legend: "Probabilidad de lluvia. Rachas en km/h",
     forecast_unavailable: "La previsión no está disponible.",
@@ -279,6 +290,8 @@ const EN: Strings = Strings {
     alerts_unchecked: "We couldn’t check for weather alerts",
     next_hours: "Next hours",
     hour_now: "Now",
+    closed_block: |closes, opens| format!("Closed {closes}–{opens}"),
+    weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     hourly_forecast: "Hourly forecast",
     forecast_legend: "Rain chance. Gusts in km/h",
     forecast_unavailable: "The forecast isn’t available.",
