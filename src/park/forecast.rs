@@ -30,6 +30,8 @@ impl Forecast {
             let Schedule::Open { closes_at } = schedule::retiro(hour.at.timestamp()) else {
                 continue;
             };
+            // When the previous open hour's window closed, if this hour comes
+            // after it: the first open hour after a closure.
             let closed_since = last_closes_at
                 .replace(closes_at)
                 .filter(|from| hour.at.timestamp() >= from.timestamp());
