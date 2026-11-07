@@ -3,7 +3,7 @@ use maud::{Markup, html};
 
 use crate::i18n::{Age, Strings};
 use crate::open_meteo;
-use crate::park::forecast::HourForecast;
+use crate::park::forecast::{HourForecast, HourLabel, NextHour};
 
 /// A forecast past this age still shows, with a note saying how old it is.
 const OLD_AFTER: SignedDuration = SignedDuration::from_hours(3);
@@ -11,14 +11,16 @@ const OLD_AFTER: SignedDuration = SignedDuration::from_hours(3);
 pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timestamp) -> Markup {
     let hours = forecast
         .as_ref()
-        .map_or(&[][..], |fetched| fetched.forecast.next_hours(now));
+        .map_or(Vec::new(), |fetched| fetched.forecast.next_hours(now));
     html! {
         section.next-hours {
             h2 { (strings.next_hours) }
             @if let (Some(fetched), false) = (forecast, hours.is_empty()) {
                 ol.hours tabindex="0" aria-label=(strings.hourly_forecast) {
-                    @for (index, hour) in hours.iter().enumerate() {
-                        (column(strings, hour, index == 0))
+                    @for item in &hours {
+                        @if let NextHour::Open { hour, label } = item {
+                            (column(strings, hour, *label == HourLabel::Now))
+                        }
                     }
                 }
                 p.legend { (strings.forecast_legend) }

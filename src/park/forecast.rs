@@ -1,5 +1,7 @@
 use jiff::{SignedDuration, Timestamp, Zoned};
 
+use super::schedule::{self, Schedule, madrid};
+
 const NEXT_HOURS: usize = 12;
 const HOUR: SignedDuration = SignedDuration::from_hours(1);
 
@@ -9,15 +11,65 @@ pub struct Forecast {
 }
 
 impl Forecast {
-    /// Up to 12 consecutive hours, starting with the one that contains `now`.
-    /// Empty when no hour contains `now`.
-    pub fn next_hours(&self, now: Timestamp) -> &[HourForecast] {
-        let Some(first) = self.hours.iter().position(|hour| hour.contains(now)) else {
-            return &[];
+    /// Up to 12 open hours, from the current hour while the park is open or
+    /// from opening time while it's closed. Empty when the data has neither.
+    pub fn next_hours(&self, now: Timestamp) -> Vec<NextHour<'_>> {
+        let (start, mut label) = match schedule::retiro(now) {
+            Schedule::Open { .. } => (now, HourLabel::Now),
+            Schedule::Closed { opens_at } => (opens_at.timestamp(), HourLabel::Time),
         };
-        let hours = &self.hours[first..];
-        &hours[..hours.len().min(NEXT_HOURS)]
+        let Some(first) = self.hours.iter().position(|hour| hour.contains(start)) else {
+            return Vec::new();
+        };
+        let today = now.to_zoned(madrid()).date();
+        let mut day_shown = false;
+        let mut last_closes_at: Option<Zoned> = None;
+        let mut items = Vec::new();
+        let mut open_hours = 0;
+        for hour in &self.hours[first..] {
+            let Schedule::Open { closes_at } = schedule::retiro(hour.at.timestamp()) else {
+                continue;
+            };
+            let closed_since = last_closes_at
+                .replace(closes_at)
+                .filter(|from| hour.at.timestamp() >= from.timestamp());
+            if let Some(from) = closed_since {
+                let Schedule::Closed { opens_at: until } = schedule::retiro(from.timestamp())
+                else {
+                    unreachable!("the park is closed at closing time");
+                };
+                items.push(NextHour::Closed { from, until });
+            }
+            if !day_shown && hour.at.timestamp().to_zoned(madrid()).date() > today {
+                label = HourLabel::DayAndTime;
+                day_shown = true;
+            }
+            items.push(NextHour::Open { hour, label });
+            label = HourLabel::Time;
+            open_hours += 1;
+            if open_hours == NEXT_HOURS {
+                break;
+            }
+        }
+        items
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NextHour<'a> {
+    Open {
+        hour: &'a HourForecast,
+        label: HourLabel,
+    },
+    /// From closing to opening time, between two open hours.
+    Closed { from: Zoned, until: Zoned },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HourLabel {
+    Now,
+    Time,
+    DayAndTime,
 }
 
 /// The forecast for the hour from `at` to the next one.

@@ -1419,11 +1419,16 @@ async fn the_current_hour_is_labelled_now_in_spanish() {
 }
 
 #[tokio::test]
-async fn the_hour_after_midnight_is_in_madrid_time() {
+async fn the_opening_hour_is_in_madrid_time() {
     let body =
-        body_with_forecast(forecast("retiro.json"), "2026-11-02T23:30:00+01:00", "/en").await;
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T05:30:00+01:00", "/en").await;
 
-    assert!(body.contains(r#"<span class="hour">0:00</span>"#), "{body}");
+    assert!(
+        body.contains(
+            r#"aria-label="Hourly forecast"><li class=""><span class="hour">6:00</span>"#
+        ),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -1563,9 +1568,9 @@ async fn the_age_note_sits_under_the_legend() {
 #[tokio::test]
 async fn an_old_forecast_has_fewer_columns_once_its_data_runs_out() {
     let body =
-        body_with_forecast(forecast("retiro.json"), "2026-11-03T21:15:00+01:00", "/en").await;
+        body_with_forecast(forecast("retiro.json"), "2026-11-03T18:15:00+01:00", "/en").await;
 
-    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 3, "{body}");
+    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 4, "{body}");
 }
 
 #[tokio::test]
