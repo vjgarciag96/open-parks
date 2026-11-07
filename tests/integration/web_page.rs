@@ -1384,18 +1384,21 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
     assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
     let first = concat!(
         r#"<ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
-        r#"<li class="current"><span class="hour">Now</span><span class="temperature">7°</span>"#,
+        r#"<li class="current"><span class="hour">Now</span><span class="icon"><svg "#,
+    );
+    let first_values = concat!(
+        r#"</svg></span><span class="temperature">7°</span>"#,
         r#"<span class="rain">70%</span><span class="gusts">17</span></li>"#,
     );
-    let second = concat!(
-        r#"<span class="hour">10:00</span><span class="temperature">11°</span>"#,
+    let second_values = concat!(
+        r#"</svg></span><span class="temperature">11°</span>"#,
         r#"<span class="rain">77%</span><span class="gusts">24</span></li>"#,
     );
-    let last = concat!(
-        r#"<span class="hour">20:00</span><span class="temperature">14°</span>"#,
+    let last_values = concat!(
+        r#"</svg></span><span class="temperature">14°</span>"#,
         r#"<span class="rain">46%</span><span class="gusts">6</span></li></ol>"#,
     );
-    for expected in [first, second, last] {
+    for expected in [first, first_values, second_values, last_values] {
         assert!(body.contains(expected), "{expected}: {body}");
     }
 }
@@ -1512,9 +1515,46 @@ async fn while_closed_the_card_starts_at_opening_time_with_no_now() {
 }
 
 #[tokio::test]
-async fn a_missing_value_leaves_its_cell_blank() {
+async fn each_column_shows_its_weathers_icon() {
     let hour = HourForecast {
-        temperature: None,
+        weather_code: Some(0),
+        is_day: Some(true),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(&format!(
+            r#"<span class="hour">Now</span><span class="icon">{}</span>"#,
+            include_str!("../../assets/weather/clear-sky.svg")
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_night_hour_shows_the_night_icon() {
+    let hour = HourForecast {
+        weather_code: Some(0),
+        is_day: Some(false),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(&format!(
+            r#"<span class="icon">{}</span>"#,
+            include_str!("../../assets/weather/clear-sky-night.svg")
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_missing_rain_chance_or_gust_shows_a_dash() {
+    let hour = HourForecast {
         rain_chance: None,
         gusts: None,
         ..hour_at_nine()
@@ -1524,9 +1564,67 @@ async fn a_missing_value_leaves_its_cell_blank() {
 
     assert!(
         body.contains(concat!(
-            r#"<span class="temperature"></span>"#,
-            r#"<span class="rain"></span>"#,
-            r#"<span class="gusts"></span>"#,
+            r#"<span class="temperature">7°</span>"#,
+            r#"<span class="rain">–</span>"#,
+            r#"<span class="gusts">–</span></li>"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn an_unknown_weather_code_shows_a_dash_for_its_icon_and_keeps_the_values() {
+    let hour = HourForecast {
+        weather_code: Some(4),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<span class="hour">Now</span><span class="icon">–</span>"#,
+            r#"<span class="temperature">7°</span>"#,
+            r#"<span class="rain">70%</span>"#,
+            r#"<span class="gusts">17</span></li>"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_missing_temperature_blanks_the_column_but_keeps_its_hour() {
+    let hour = HourForecast {
+        temperature: None,
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<li class="current"><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<span class="temperature"></span><span class="rain"></span>"#,
+            r#"<span class="gusts"></span></li>"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_missing_weather_code_blanks_the_column_but_keeps_its_hour() {
+    let hour = HourForecast {
+        weather_code: None,
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<li class="current"><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<span class="temperature"></span><span class="rain"></span>"#,
+            r#"<span class="gusts"></span></li>"#,
         )),
         "{body}"
     );

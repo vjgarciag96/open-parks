@@ -14,6 +14,8 @@
   --danger-halo: #ffe5e7;
   --neutral: #6e6e73;
   --rain: #0058b0;
+  --sun: #b25000;
+  --moon: #5856d6;
   --soft: rgba(0, 0, 0, 0.04);
 }
 
@@ -34,6 +36,8 @@
     --danger-halo: #331314;
     --neutral: #8e8e93;
     --rain: #64b5ff;
+    --sun: #ff9f0a;
+    --moon: #8e8cff;
     --soft: rgba(255, 255, 255, 0.08);
   }
 }
@@ -270,6 +274,35 @@ section h2 {
 .hours .current .hour {
   font-weight: 600;
   color: var(--text);
+}
+
+.hours .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  color: var(--muted);
+}
+
+.hours .icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.weather .cloud {
+  stroke: var(--muted);
+}
+
+.weather .sun {
+  stroke: var(--sun);
+}
+
+.weather .water {
+  stroke: var(--rain);
+}
+
+.weather .moon {
+  stroke: var(--moon);
 }
 
 .hours .temperature {
