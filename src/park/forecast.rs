@@ -14,45 +14,64 @@ impl Forecast {
     /// Up to 12 open hours, from the current hour while the park is open or
     /// from opening time while it's closed. Empty when the data has neither.
     pub fn next_hours(&self, now: Timestamp) -> Vec<NextHour<'_>> {
-        let (start, mut label) = match schedule::retiro(now) {
-            Schedule::Open { .. } => (now, HourLabel::Now),
-            Schedule::Closed { opens_at } => (opens_at.timestamp(), HourLabel::Time),
+        let (start, open_now) = match schedule::retiro(now) {
+            Schedule::Open { .. } => (now, true),
+            Schedule::Closed { opens_at } => (opens_at.timestamp(), false),
         };
         let Some(first) = self.hours.iter().position(|hour| hour.contains(start)) else {
             return Vec::new();
         };
+        let open_hours: Vec<(&HourForecast, Zoned)> = self.hours[first..]
+            .iter()
+            .filter_map(|hour| match schedule::retiro(hour.at.timestamp()) {
+                Schedule::Open { closes_at } => Some((hour, closes_at)),
+                Schedule::Closed { .. } => None,
+            })
+            .take(NEXT_HOURS)
+            .collect();
+
         let today = now.to_zoned(madrid()).date();
-        let mut day_shown = false;
-        let mut last_closes_at: Option<Zoned> = None;
+        let first_after_today = open_hours
+            .iter()
+            .position(|(hour, _)| hour.at.timestamp().to_zoned(madrid()).date() > today);
+        let label = |index| {
+            if index == 0 && open_now {
+                HourLabel::Now
+            } else if Some(index) == first_after_today {
+                HourLabel::DayAndTime
+            } else {
+                HourLabel::Time
+            }
+        };
+
         let mut items = Vec::new();
-        let mut open_hours = 0;
-        for hour in &self.hours[first..] {
-            let Schedule::Open { closes_at } = schedule::retiro(hour.at.timestamp()) else {
-                continue;
-            };
-            // When the previous open hour's window closed, if this hour comes
-            // after it: the first open hour after a closure.
-            let closed_since = last_closes_at
-                .replace(closes_at)
-                .filter(|from| hour.at.timestamp() >= from.timestamp());
-            // No block when the park opens again the moment it closes.
-            if let Some(from) = closed_since
-                && let Schedule::Closed { opens_at: until } = schedule::retiro(from.timestamp())
+        for (index, (hour, _)) in open_hours.iter().enumerate() {
+            if index > 0
+                && let Some(closed) = closed_between(&open_hours[index - 1].1, hour)
             {
-                items.push(NextHour::Closed { from, until });
+                items.push(closed);
             }
-            if !day_shown && hour.at.timestamp().to_zoned(madrid()).date() > today {
-                label = HourLabel::DayAndTime;
-                day_shown = true;
-            }
-            items.push(NextHour::Open { hour, label });
-            label = HourLabel::Time;
-            open_hours += 1;
-            if open_hours == NEXT_HOURS {
-                break;
-            }
+            items.push(NextHour::Open {
+                hour,
+                label: label(index),
+            });
         }
         items
+    }
+}
+
+/// The closed block before `hour` when the park closed at `closes_at` since
+/// the previous open hour. None when it opens again the moment it closes.
+fn closed_between<'a>(closes_at: &Zoned, hour: &HourForecast) -> Option<NextHour<'a>> {
+    if hour.at.timestamp() < closes_at.timestamp() {
+        return None;
+    }
+    match schedule::retiro(closes_at.timestamp()) {
+        Schedule::Closed { opens_at } => Some(NextHour::Closed {
+            from: closes_at.clone(),
+            until: opens_at,
+        }),
+        Schedule::Open { .. } => None,
     }
 }
 
