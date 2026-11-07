@@ -1,6 +1,6 @@
 use jiff::{SignedDuration, Timestamp};
 use open_parks::open_meteo;
-use open_parks::park::forecast::{Forecast, HourForecast, NextHour};
+use open_parks::park::forecast::{Conditions, Forecast, HourForecast, NextHour, Weather};
 
 use crate::support::fixtures::open_meteo_fixture;
 
@@ -249,4 +249,113 @@ fn while_open_there_are_no_hours_before_the_data_starts() {
     let hours = next_hours(&fixture("retiro.json"), "2026-11-01T21:59:59+01:00");
 
     assert!(hours.is_empty(), "{hours:?}");
+}
+
+/// An hour with every value, at 9:00 on a day the park opens.
+fn full_hour() -> HourForecast {
+    HourForecast {
+        temperature: Some(7.3),
+        weather_code: Some(61),
+        is_day: Some(false),
+        rain_chance: Some(70),
+        gusts: Some(16.6),
+        ..hourly("2026-11-02T09:00:00+01:00", 1).remove(0)
+    }
+}
+
+#[test]
+fn only_the_28_wmo_weather_codes_are_weather() {
+    let codes: Vec<u8> = (0..=u8::MAX)
+        .filter(|code| Weather::from_wmo(*code).is_some())
+        .collect();
+
+    assert_eq!(
+        codes,
+        [
+            0, 1, 2, 3, 45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82,
+            85, 86, 95, 96, 99,
+        ]
+    );
+}
+
+#[test]
+fn an_hour_with_every_value_has_its_conditions() {
+    let conditions = full_hour().conditions();
+
+    assert_eq!(
+        conditions,
+        Some(Conditions {
+            weather: Some(Weather::SlightRain),
+            is_day: false,
+            temperature: 7.3,
+            rain_chance: Some(70),
+            gusts: Some(16.6),
+        })
+    );
+}
+
+#[test]
+fn an_hour_without_a_temperature_has_no_conditions() {
+    let hour = HourForecast {
+        temperature: None,
+        ..full_hour()
+    };
+
+    assert_eq!(hour.conditions(), None);
+}
+
+#[test]
+fn an_hour_without_a_weather_code_has_no_conditions() {
+    let hour = HourForecast {
+        weather_code: None,
+        ..full_hour()
+    };
+
+    assert_eq!(hour.conditions(), None);
+}
+
+#[test]
+fn an_unknown_weather_code_keeps_the_hours_other_values() {
+    let hour = HourForecast {
+        weather_code: Some(4),
+        ..full_hour()
+    };
+
+    assert_eq!(
+        hour.conditions(),
+        Some(Conditions {
+            weather: None,
+            is_day: false,
+            temperature: 7.3,
+            rain_chance: Some(70),
+            gusts: Some(16.6),
+        })
+    );
+}
+
+#[test]
+fn a_missing_day_or_night_counts_as_day() {
+    let hour = HourForecast {
+        is_day: None,
+        ..full_hour()
+    };
+
+    let is_day = hour.conditions().map(|conditions| conditions.is_day);
+
+    assert_eq!(is_day, Some(true));
+}
+
+#[test]
+fn missing_rain_chance_and_gusts_stay_missing() {
+    let hour = HourForecast {
+        rain_chance: None,
+        gusts: None,
+        ..full_hour()
+    };
+
+    let values = hour
+        .conditions()
+        .map(|conditions| (conditions.rain_chance, conditions.gusts));
+
+    assert_eq!(values, Some((None, None)));
 }
