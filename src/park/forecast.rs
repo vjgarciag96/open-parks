@@ -33,11 +33,10 @@ impl Forecast {
             let closed_since = last_closes_at
                 .replace(closes_at)
                 .filter(|from| hour.at.timestamp() >= from.timestamp());
-            if let Some(from) = closed_since {
-                let Schedule::Closed { opens_at: until } = schedule::retiro(from.timestamp())
-                else {
-                    unreachable!("the park is closed at closing time");
-                };
+            // No block when the park opens again the moment it closes.
+            if let Some(from) = closed_since
+                && let Schedule::Closed { opens_at: until } = schedule::retiro(from.timestamp())
+            {
                 items.push(NextHour::Closed { from, until });
             }
             if !day_shown && hour.at.timestamp().to_zoned(madrid()).date() > today {
