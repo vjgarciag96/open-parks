@@ -39,6 +39,8 @@ impl Forecast {
                 HourLabel::Now
             } else if Some(index) == first_after_today {
                 HourLabel::DayAndTime
+            } else if index == 0 {
+                HourLabel::TodayAndTime
             } else {
                 HourLabel::Time
             }
@@ -89,6 +91,7 @@ pub enum NextHour<'a> {
 pub enum HourLabel {
     Now,
     Time,
+    TodayAndTime,
     DayAndTime,
 }
 

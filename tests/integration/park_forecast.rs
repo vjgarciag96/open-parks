@@ -131,13 +131,13 @@ fn the_summer_night_folds_into_one_block_from_midnight() {
 }
 
 #[test]
-fn while_closed_after_midnight_the_hours_start_at_opening_time_without_the_day() {
+fn while_closed_after_midnight_the_hours_start_at_opening_time_with_today() {
     let hours = next_hours(&fixture("retiro.json"), "2026-11-03T03:00:00+01:00");
 
     assert_eq!(
         hours,
         [
-            "Time 2026-11-03T06:00+01:00",
+            "TodayAndTime 2026-11-03T06:00+01:00",
             "Time 2026-11-03T07:00+01:00",
             "Time 2026-11-03T08:00+01:00",
             "Time 2026-11-03T09:00+01:00",
@@ -213,7 +213,10 @@ fn when_the_clocks_go_back_during_the_night_the_hours_start_at_opening_time() {
 
     assert_eq!(
         hours[..2],
-        ["Time 2026-10-25T06:00+01:00", "Time 2026-10-25T07:00+01:00"]
+        [
+            "TodayAndTime 2026-10-25T06:00+01:00",
+            "Time 2026-10-25T07:00+01:00"
+        ]
     );
 }
 
@@ -226,7 +229,10 @@ fn when_the_clocks_go_forward_during_the_night_the_hours_start_at_opening_time()
 
     assert_eq!(
         hours[..2],
-        ["Time 2027-03-28T06:00+02:00", "Time 2027-03-28T07:00+02:00"]
+        [
+            "TodayAndTime 2027-03-28T06:00+02:00",
+            "Time 2027-03-28T07:00+02:00"
+        ]
     );
 }
 

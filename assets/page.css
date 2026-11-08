@@ -261,6 +261,8 @@ section h2 {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* A blank value keeps its row, so the columns stay aligned. */

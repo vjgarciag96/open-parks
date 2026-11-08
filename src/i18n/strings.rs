@@ -33,6 +33,7 @@ pub(crate) struct Strings {
     pub(crate) alerts_unchecked: &'static str,
     pub(crate) next_hours: &'static str,
     pub(crate) hour_now: &'static str,
+    pub(crate) today: &'static str,
     /// The hours the park closes and opens at, 0 for midnight.
     pub(crate) closed_block: fn(i8, i8) -> String,
     /// Short names, Monday first.
@@ -198,6 +199,7 @@ const ES: Strings = Strings {
     alerts_unchecked: "No hemos podido consultar si hay alertas",
     next_hours: "Próximas horas",
     hour_now: "Ahora",
+    today: "Hoy",
     closed_block: |closes, opens| format!("Cerrado {closes}–{opens}"),
     weekdays: ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
     hourly_forecast: "Previsión por horas",
@@ -290,6 +292,7 @@ const EN: Strings = Strings {
     alerts_unchecked: "We couldn’t check for weather alerts",
     next_hours: "Next hours",
     hour_now: "Now",
+    today: "Today",
     closed_block: |closes, opens| format!("Closed {closes}–{opens}"),
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     hourly_forecast: "Hourly forecast",
