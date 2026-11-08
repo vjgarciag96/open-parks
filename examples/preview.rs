@@ -139,6 +139,10 @@ fn previews() -> std::io::Result<Vec<Preview>> {
                 forecast: missing_values_fetched_at(DAY),
                 ..fetched(".missing_values", DAY, 0, None)
             });
+            previews.push(Preview {
+                forecast: risky_values_fetched_at(DAY),
+                ..fetched(".risky_values", DAY, 0, None)
+            });
         }
     }
     for (name, error, at, telegram_bot_username) in [
@@ -188,6 +192,27 @@ fn missing_values_fetched_at(at: &str) -> open_meteo::Latest {
             (2, 14) => hour.temperature = None,
             (2, 15) => hour.weather_code = None,
             (2, 16) => hour.is_day = None,
+            _ => {}
+        }
+    }
+    latest
+}
+
+/// The forecast with every value risky in the first hour, in the shaded "Now"
+/// column, then each cut-off in one hour from 11:00 to 14:00.
+fn risky_values_fetched_at(at: &str) -> open_meteo::Latest {
+    let mut latest = forecast_fetched_at(at);
+    for hour in &mut latest.as_mut().unwrap().forecast.hours {
+        match (hour.at.day(), hour.at.hour()) {
+            (2, 10) => {
+                hour.temperature = Some(35.0);
+                hour.rain_chance = Some(60);
+                hour.gusts = Some(40.0);
+            }
+            (2, 11) => hour.temperature = Some(35.0),
+            (2, 12) => hour.temperature = Some(0.0),
+            (2, 13) => hour.rain_chance = Some(60),
+            (2, 14) => hour.gusts = Some(40.0),
             _ => {}
         }
     }

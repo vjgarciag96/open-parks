@@ -1423,11 +1423,11 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
     );
     let first_values = concat!(
         r#"</svg></span><span class="temperature">7°</span>"#,
-        r#"<span class="rain">70%</span><span class="gusts">17</span></li>"#,
+        r#"<span class="rain risky">70%</span><span class="gusts">17</span></li>"#,
     );
     let second_values = concat!(
         r#"</svg></span><span class="temperature">11°</span>"#,
-        r#"<span class="rain">77%</span><span class="gusts">24</span></li>"#,
+        r#"<span class="rain risky">77%</span><span class="gusts">24</span></li>"#,
     );
     let last_values = concat!(
         r#"</svg></span><span class="temperature">14°</span>"#,
@@ -1629,7 +1629,7 @@ async fn an_unknown_weather_code_shows_a_dash_for_its_icon_and_keeps_the_values(
         body.contains(concat!(
             r#"<span class="hour">Now</span><span class="icon">–</span>"#,
             r#"<span class="temperature">7°</span>"#,
-            r#"<span class="rain">70%</span>"#,
+            r#"<span class="rain risky">70%</span>"#,
             r#"<span class="gusts">17</span></li>"#,
         )),
         "{body}"
@@ -1696,7 +1696,91 @@ async fn a_temperature_just_below_zero_rounds_to_zero_without_a_sign() {
     let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
 
     assert!(
-        body.contains(r#"<span class="temperature">0°</span>"#),
+        body.contains(r#"<span class="temperature risky">0°</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn gusts_at_the_cut_off_are_highlighted() {
+    let hour = HourForecast {
+        gusts: Some(40.0),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="gusts risky">40</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn gusts_below_the_cut_off_are_not_highlighted() {
+    let hour = HourForecast {
+        gusts: Some(39.4),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(body.contains(r#"<span class="gusts">39</span>"#), "{body}");
+}
+
+#[tokio::test]
+async fn a_rain_chance_at_the_cut_off_is_highlighted() {
+    let hour = HourForecast {
+        rain_chance: Some(60),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="rain risky">60%</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_rain_chance_below_the_cut_off_is_not_highlighted() {
+    let hour = HourForecast {
+        rain_chance: Some(59),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(body.contains(r#"<span class="rain">59%</span>"#), "{body}");
+}
+
+#[tokio::test]
+async fn a_temperature_at_the_hot_cut_off_is_highlighted() {
+    let hour = HourForecast {
+        temperature: Some(35.0),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="temperature risky">35°</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_temperature_between_the_cut_offs_is_not_highlighted() {
+    let hour = HourForecast {
+        temperature: Some(34.4),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="temperature">34°</span>"#),
         "{body}"
     );
 }
@@ -1711,7 +1795,7 @@ async fn a_temperature_below_zero_keeps_its_sign() {
     let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
 
     assert!(
-        body.contains(r#"<span class="temperature">-1°</span>"#),
+        body.contains(r#"<span class="temperature risky">-1°</span>"#),
         "{body}"
     );
 }
