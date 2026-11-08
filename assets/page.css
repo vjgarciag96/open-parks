@@ -319,6 +319,7 @@ section h2 {
 }
 
 .hours .temperature.risky {
+  font-weight: 700;
   color: var(--risk);
 }
 
