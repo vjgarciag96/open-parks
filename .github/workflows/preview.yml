@@ -63,6 +63,8 @@ jobs:
           mkdir -p "pr-$PR/$HEAD_SHA"
           cp "${shots[@]}" "pr-$PR/$HEAD_SHA/"
           git add .
+          # A rerun for the same commit may have pushed these screenshots already.
+          git diff --cached --quiet && exit 0
           git commit --quiet -m "Preview #$PR at $HEAD_SHA"
           # Another PR's run may push first.
           for attempt in 1 2 3; do
@@ -75,7 +77,7 @@ jobs:
           CHANGED: ${{ steps.shots.outputs.changed }}
         run: |
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | startswith("<!-- page-preview -->")) | .id' | head -n 1)
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- page-preview -->"))) | .id' | head -n 1)
           # A PR that never changed a page gets no comment, but one that did
           # and no longer does gets its comment updated to say so.
           if [ -n "$id" ]; then
