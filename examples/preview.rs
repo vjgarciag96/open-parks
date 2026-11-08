@@ -10,14 +10,16 @@ use axum::http::Request;
 use http_body_util::BodyExt;
 use jiff::{SignedDuration, Timestamp};
 use open_parks::open_meteo;
+use open_parks::park::forecast::Weather;
 use open_parks::sigma::{self, FetchError};
 use open_parks::sigma::{Fetched, Latest};
-use open_parks::web::page;
+use open_parks::web::page::{self, weather_icon};
 use tokio::sync::watch;
 use tower::ServiceExt;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sigma");
 const FORECAST: &str = include_str!("../tests/fixtures/open_meteo/rain_chances.json");
+const STYLE: &str = include_str!("../assets/page.css");
 const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
 const DETAILED: &str = "code_6_red_alert_restrictions";
 const LANGS: [&str; 2] = ["es", "en"];
@@ -89,7 +91,7 @@ async fn main() -> std::io::Result<()> {
         )?;
         index.push_str(&format!(" <a href=\"{schemes}\">light &amp; dark</a></li>"));
     }
-    index.push_str("</ul>");
+    index.push_str(&format!("<li>{}</li></ul>", weather_icons(output)?));
     let index_path = output.join("index.html");
     fs::write(&index_path, index)?;
     println!("open {}", index_path.display());
@@ -133,6 +135,10 @@ fn previews() -> std::io::Result<Vec<Preview>> {
                 forecast: None,
                 ..fetched(".no_forecast", DAY, 0, None)
             });
+            previews.push(Preview {
+                forecast: missing_values_fetched_at(DAY),
+                ..fetched(".missing_values", DAY, 0, None)
+            });
         }
     }
     for (name, error, at, telegram_bot_username) in [
@@ -168,6 +174,65 @@ fn forecast_fetched_at(at: &str) -> open_meteo::Latest {
         forecast: open_meteo::decode(FORECAST).unwrap(),
         fetched_at: at.parse().unwrap(),
     })
+}
+
+/// The forecast with one value left out in each hour from 11:00 to 16:00,
+/// or at 13:00 a weather code with no icon, as Open-Meteo might send it.
+fn missing_values_fetched_at(at: &str) -> open_meteo::Latest {
+    let mut latest = forecast_fetched_at(at);
+    for hour in &mut latest.as_mut().unwrap().forecast.hours {
+        match (hour.at.day(), hour.at.hour()) {
+            (2, 11) => hour.rain_chance = None,
+            (2, 12) => hour.gusts = None,
+            (2, 13) => hour.weather_code = Some(4),
+            (2, 14) => hour.temperature = None,
+            (2, 15) => hour.weather_code = None,
+            (2, 16) => hour.is_day = None,
+            _ => {}
+        }
+    }
+    latest
+}
+
+/// Writes every weather icon, by day and by night, in light and dark, and
+/// returns the index's link to them.
+fn weather_icons(output: &Path) -> std::io::Result<String> {
+    let mut sheet = format!(
+        "<!DOCTYPE html><meta charset=utf-8><style>{STYLE}\
+         .sheet{{align-self:stretch;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin:1rem}}\
+         .sheet div{{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px;border-radius:12px;background:var(--card);font-size:.75rem;color:var(--muted);text-align:center}}\
+         .sheet .weather{{width:56px;height:56px}}</style><div class=sheet>"
+    );
+    for code in 0..=u8::MAX {
+        let Some(weather) = Weather::from_wmo(code) else {
+            continue;
+        };
+        let (day, night) = (
+            weather_icon::svg(weather, true),
+            weather_icon::svg(weather, false),
+        );
+        sheet.push_str(&format!("<div>{day}{day}{code} {weather:?}</div>"));
+        if night != day {
+            sheet.push_str(&format!(
+                "<div>{night}{night}{code} {weather:?} at night</div>"
+            ));
+        }
+    }
+    sheet.push_str("</div>");
+    fs::write(output.join("weather_icons.sheet.html"), sheet)?;
+    let frames: String = SCHEMES
+        .iter()
+        .map(|scheme| {
+            format!(
+                "<iframe src=\"weather_icons.sheet.html\" style=\"color-scheme: {scheme}; width: 100%; height: 1300px\" title=\"{scheme}\"></iframe>"
+            )
+        })
+        .collect();
+    fs::write(
+        output.join("weather_icons.html"),
+        format!("{SCHEMES_HEAD}<title>Weather icons</title><h1>Weather icons</h1>{frames}"),
+    )?;
+    Ok("Weather icons: <a href=\"weather_icons.html\">light &amp; dark</a>".to_owned())
 }
 
 fn fixtures() -> std::io::Result<Vec<(String, String)>> {

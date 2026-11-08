@@ -22,6 +22,7 @@ use crate::web::structured_data;
 
 mod llms_txt;
 mod next_hours;
+pub mod weather_icon;
 
 const STYLE: &str = include_str!("../../assets/page.css");
 const TELEGRAM_LOGO: &str = include_str!("../../assets/telegram_logo.svg");

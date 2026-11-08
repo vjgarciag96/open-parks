@@ -108,8 +108,103 @@ pub struct HourForecast {
 }
 
 impl HourForecast {
+    /// None when the temperature or the weather code is missing.
+    pub fn conditions(&self) -> Option<Conditions> {
+        Some(Conditions {
+            weather: Weather::from_wmo(self.weather_code?),
+            is_day: self.is_day.unwrap_or(true),
+            temperature: self.temperature?,
+            rain_chance: self.rain_chance,
+            gusts: self.gusts,
+        })
+    }
+
     fn contains(&self, now: Timestamp) -> bool {
         let start = self.at.timestamp();
         start <= now && now < start + HOUR
+    }
+}
+
+/// What one hour's column shows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Conditions {
+    /// None when Open-Meteo sent a code that isn't a WMO weather code.
+    pub weather: Option<Weather>,
+    /// True when Open-Meteo leaves it out.
+    pub is_day: bool,
+    /// In °C.
+    pub temperature: f64,
+    /// In %.
+    pub rain_chance: Option<u8>,
+    /// In km/h.
+    pub gusts: Option<f64>,
+}
+
+/// The weather a WMO code stands for, among the codes Open-Meteo uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Weather {
+    ClearSky,
+    MainlyClear,
+    PartlyCloudy,
+    Overcast,
+    Fog,
+    RimeFog,
+    LightDrizzle,
+    ModerateDrizzle,
+    DenseDrizzle,
+    LightFreezingDrizzle,
+    DenseFreezingDrizzle,
+    SlightRain,
+    ModerateRain,
+    HeavyRain,
+    LightFreezingRain,
+    HeavyFreezingRain,
+    SlightSnowfall,
+    ModerateSnowfall,
+    HeavySnowfall,
+    SnowGrains,
+    SlightRainShowers,
+    ModerateRainShowers,
+    ViolentRainShowers,
+    SlightSnowShowers,
+    HeavySnowShowers,
+    Thunderstorm,
+    ThunderstormWithSlightHail,
+    ThunderstormWithHeavyHail,
+}
+
+impl Weather {
+    pub fn from_wmo(code: u8) -> Option<Weather> {
+        Some(match code {
+            0 => Weather::ClearSky,
+            1 => Weather::MainlyClear,
+            2 => Weather::PartlyCloudy,
+            3 => Weather::Overcast,
+            45 => Weather::Fog,
+            48 => Weather::RimeFog,
+            51 => Weather::LightDrizzle,
+            53 => Weather::ModerateDrizzle,
+            55 => Weather::DenseDrizzle,
+            56 => Weather::LightFreezingDrizzle,
+            57 => Weather::DenseFreezingDrizzle,
+            61 => Weather::SlightRain,
+            63 => Weather::ModerateRain,
+            65 => Weather::HeavyRain,
+            66 => Weather::LightFreezingRain,
+            67 => Weather::HeavyFreezingRain,
+            71 => Weather::SlightSnowfall,
+            73 => Weather::ModerateSnowfall,
+            75 => Weather::HeavySnowfall,
+            77 => Weather::SnowGrains,
+            80 => Weather::SlightRainShowers,
+            81 => Weather::ModerateRainShowers,
+            82 => Weather::ViolentRainShowers,
+            85 => Weather::SlightSnowShowers,
+            86 => Weather::HeavySnowShowers,
+            95 => Weather::Thunderstorm,
+            96 => Weather::ThunderstormWithSlightHail,
+            99 => Weather::ThunderstormWithHeavyHail,
+            _ => return None,
+        })
     }
 }
