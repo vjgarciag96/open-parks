@@ -7,6 +7,7 @@ use crate::web::public_url::PublicUrl;
 
 // The name, address and coordinates are the Ayuntamiento's, from the page
 // linked in park/schedule.rs; the Wikidata item is Q1131807, "El Retiro Park".
+pub(crate) const SITE_NAME: &str = "Retiro Abierto";
 const OFFICIAL_NAME: &str = "Jardines de El Buen Retiro";
 const WIKIDATA: &str = "https://www.wikidata.org/wiki/Q1131807";
 const LATITUDE: f64 = 40.41964087412762;
@@ -51,8 +52,23 @@ pub(crate) fn park(lang: Lang, public_url: Option<&PublicUrl>, now: Timestamp) -
     if let Some(public_url) = public_url {
         park["url"] = public_url.of(lang.path()).into();
     }
+    escaped(park)
+}
+
+/// The site as schema.org JSON-LD, for the name search results show above the
+/// title. It's on every page because the home page only redirects to them.
+pub(crate) fn website(public_url: &PublicUrl) -> String {
+    escaped(json!({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": SITE_NAME,
+        "url": public_url.of("/"),
+    }))
+}
+
+fn escaped(data: Value) -> String {
     // `<` can't end the script once escaped, and JSON reads it the same.
-    park.to_string().replace('<', "\\u003c")
+    data.to_string().replace('<', "\\u003c")
 }
 
 fn hours(dated: Dated) -> Value {

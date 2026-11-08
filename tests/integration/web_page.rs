@@ -932,13 +932,13 @@ async fn each_page_has_a_title_and_description_in_its_language() {
     let cases = [
         (
             "/es",
-            "<title>¿Está abierto el Retiro hoy? Parque del Retiro, Madrid</title>",
-            r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.">"#,
+            "<title>¿Está abierto hoy el Parque del Retiro de Madrid?</title>",
+            r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y los cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento.">"#,
         ),
         (
             "/en",
-            "<title>Is Retiro Park open today? Live status, Madrid</title>",
-            r#"<meta name="description" content="Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.">"#,
+            "<title>Is Madrid’s Retiro Park open today?</title>",
+            r#"<meta name="description" content="Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data.">"#,
         ),
     ];
     for (uri, title, description) in cases {
@@ -951,6 +951,18 @@ async fn each_page_has_a_title_and_description_in_its_language() {
             assert!(body.contains(title), "{uri}: {body}");
             assert!(body.contains(description), "{uri}: {body}");
         }
+    }
+}
+
+#[tokio::test]
+async fn each_page_keeps_its_text_out_of_search_snippets() {
+    for uri in ["/es", "/en"] {
+        let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
+
+        assert!(
+            body.contains("<body><div data-nosnippet><nav>"),
+            "{uri}: {body}"
+        );
     }
 }
 
@@ -1264,6 +1276,29 @@ async fn the_structured_data_has_no_url_without_a_public_url() {
     let park = structured_data(&text_body(get(fetched("code_1_open.json"), "/es").await).await);
 
     assert!(park.get("url").is_none(), "{park}");
+}
+
+#[tokio::test]
+async fn each_page_names_the_site_with_a_public_url() {
+    for uri in ["/es", "/en"] {
+        let body = text_body(get_with_public_url(fetched("code_1_open.json"), uri).await).await;
+
+        assert!(
+            body.contains(r#"<meta property="og:site_name" content="Retiro Abierto">"#),
+            "{uri}: {body}"
+        );
+        assert!(
+            body.contains(r#"{"@context":"https://schema.org","@type":"WebSite","name":"Retiro Abierto","url":"https://retiro.example/"}"#),
+            "{uri}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_site_is_not_described_without_a_public_url() {
+    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+
+    assert!(!body.contains("WebSite"), "{body}");
 }
 
 #[tokio::test]

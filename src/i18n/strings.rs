@@ -164,8 +164,8 @@ impl Age {
 }
 
 const ES: Strings = Strings {
-    title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
-    description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y si hay cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento actualizados cada minuto.",
+    title: "¿Está abierto hoy el Parque del Retiro de Madrid?",
+    description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y los cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento.",
     park_name: "Parque del Retiro",
     question: "¿Está abierto el Retiro?",
     headline: |verdict| match verdict {
@@ -256,8 +256,8 @@ const ES: Strings = Strings {
 };
 
 const EN: Strings = Strings {
-    title: "Is Retiro Park open today? Live status, Madrid",
-    description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data refreshed every minute.",
+    title: "Is Madrid’s Retiro Park open today?",
+    description: "Check whether Madrid’s Retiro Park is open, its opening hours and any closures or restrictions from weather alerts, with City Council data.",
     park_name: "Retiro Park",
     question: "Is Retiro Park open?",
     headline: |verdict| match verdict {
