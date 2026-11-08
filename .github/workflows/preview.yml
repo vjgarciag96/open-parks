@@ -1,0 +1,88 @@
+name: Page preview
+
+on:
+  pull_request:
+
+concurrency:
+  group: page-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    # A fork's token can't push the screenshots or comment.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Checks out the PR merged into its base, so comparing with the base
+      # shows what the PR alone changes.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # With no arguments, installs the toolchain pinned in rust-toolchain.toml.
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: npx --yes playwright@1.65.0 install --with-deps chromium
+      - name: Render the pages with and without the PR
+        run: |
+          cargo run --example preview
+          mv target/preview "$RUNNER_TEMP/after"
+          git checkout --quiet "$BASE_SHA"
+          cargo run --example preview
+          mv target/preview "$RUNNER_TEMP/before"
+          git checkout --quiet -
+      - name: Screenshot the pages that changed
+        id: shots
+        run: |
+          url="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/previews/pr-$PR/$HEAD_SHA"
+          changed=$(.github/page-preview.sh "$RUNNER_TEMP/before" "$RUNNER_TEMP/after" "$RUNNER_TEMP/shots" "$url" "$BASE_REF")
+          printf '\n<sub>Rendered at %s.</sub>\n' "$HEAD_SHA" >>"$RUNNER_TEMP/shots/comment.md"
+          echo "changed=$changed" >>"$GITHUB_OUTPUT"
+      - name: Push the screenshots to the previews branch
+        if: steps.shots.outputs.changed != '0'
+        run: |
+          shopt -s nullglob
+          shots=("$RUNNER_TEMP"/shots/*.png)
+          [ ${#shots[@]} -gt 0 ] || exit 0
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git fetch --quiet origin previews; then
+            git worktree add --quiet --detach "$RUNNER_TEMP/previews" FETCH_HEAD
+          else
+            git worktree add --quiet --orphan -b previews "$RUNNER_TEMP/previews"
+          fi
+          cd "$RUNNER_TEMP/previews"
+          mkdir -p "pr-$PR/$HEAD_SHA"
+          cp "${shots[@]}" "pr-$PR/$HEAD_SHA/"
+          git add .
+          # A rerun for the same commit may have pushed these screenshots already.
+          git diff --cached --quiet && exit 0
+          git commit --quiet -m "Preview #$PR at $HEAD_SHA"
+          # Another PR's run may push first.
+          for attempt in 1 2 3; do
+            git push --quiet origin HEAD:previews && exit 0
+            git fetch --quiet origin previews && git rebase --quiet FETCH_HEAD
+          done
+          exit 1
+      - name: Comment on the PR
+        env:
+          CHANGED: ${{ steps.shots.outputs.changed }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- page-preview -->"))) | .id' | head -n 1)
+          # A PR that never changed a page gets no comment, but one that did
+          # and no longer does gets its comment updated to say so.
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" \
+              -F "body=@$RUNNER_TEMP/shots/comment.md" >/dev/null
+          elif [ "$CHANGED" != 0 ]; then
+            gh pr comment "$PR" --body-file "$RUNNER_TEMP/shots/comment.md"
+          fi
