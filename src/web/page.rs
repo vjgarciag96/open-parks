@@ -328,6 +328,7 @@ fn render(
                     meta property="og:url" content=(public_url.of(lang.path()));
                 }
                 meta property="og:type" content="website";
+                meta property="og:site_name" content=(structured_data::SITE_NAME);
                 meta property="og:title" content={ (strings.question) " " (strings.answer(headline.preview)) };
                 meta property="og:description" content=(strings.description);
                 meta property="og:locale" content=(lang.locale());
@@ -336,75 +337,84 @@ fn render(
                 script type="application/ld+json" {
                     (PreEscaped(structured_data::park(lang, site.public_url.as_ref(), now)))
                 }
+                @if let Some(public_url) = &site.public_url {
+                    script type="application/ld+json" {
+                        (PreEscaped(structured_data::website(public_url)))
+                    }
+                }
                 style { (PreEscaped(STYLE)) }
             }
             body {
-                nav {
-                    @for language in Lang::ALL {
-                        @if language == lang {
-                            span aria-current="page" { (language.name()) }
-                        } @else {
-                            a href=(language.path()) hreflang=(language.code()) lang=(language.code()) {
-                                (language.name())
-                            }
-                        }
-                    }
-                }
-                main {
-                    h1.long[answer.chars().count() > LONG_ANSWER_AFTER] {
-                        span.question { (strings.question) }
-                        " "
-                        (answer)
-                    }
-                    @if let Some(schedule) = headline.schedule {
-                        p.now { (strings.schedule_line(schedule)) }
-                    }
-                    section.alerts {
-                        h2 { (strings.alerts) }
-                        p.alert.(tone.class) {
-                            span.icon aria-hidden="true" { (tone.icon) }
-                            (strings.alert_line(headline.alerts))
-                        }
-                        (details)
-                    }
-                    (next_hours)
-                    section.schedule {
-                        h2 { (strings.opening_hours) }
-                        table.opening-hours {
-                            @for season in &schedule::SEASONS {
-                                tr.row {
-                                    th scope="row" {
-                                        (strings.month(season.first_month))
-                                        "–"
-                                        (strings.month(season.last_month))
-                                    }
-                                    td { ((strings.season_hours)(season)) }
+                // Google quotes page text over the description otherwise, and its copy
+                // of the live status is out of date by the time anyone reads it.
+                div data-nosnippet {
+                    nav {
+                        @for language in Lang::ALL {
+                            @if language == lang {
+                                span aria-current="page" { (language.name()) }
+                            } @else {
+                                a href=(language.path()) hreflang=(language.code()) lang=(language.code()) {
+                                    (language.name())
                                 }
                             }
                         }
                     }
-                    @if let Some(bot) = &site.telegram_bot_username {
-                        p.telegram {
-                            a href={ "https://t.me/" (bot) } {
-                                (PreEscaped(TELEGRAM_LOGO))
-                                (strings.telegram)
+                    main {
+                        h1.long[answer.chars().count() > LONG_ANSWER_AFTER] {
+                            span.question { (strings.question) }
+                            " "
+                            (answer)
+                        }
+                        @if let Some(schedule) = headline.schedule {
+                            p.now { (strings.schedule_line(schedule)) }
+                        }
+                        section.alerts {
+                            h2 { (strings.alerts) }
+                            p.alert.(tone.class) {
+                                span.icon aria-hidden="true" { (tone.icon) }
+                                (strings.alert_line(headline.alerts))
+                            }
+                            (details)
+                        }
+                        (next_hours)
+                        section.schedule {
+                            h2 { (strings.opening_hours) }
+                            table.opening-hours {
+                                @for season in &schedule::SEASONS {
+                                    tr.row {
+                                        th scope="row" {
+                                            (strings.month(season.first_month))
+                                            "–"
+                                            (strings.month(season.last_month))
+                                        }
+                                        td { ((strings.season_hours)(season)) }
+                                    }
+                                }
+                            }
+                        }
+                        @if let Some(bot) = &site.telegram_bot_username {
+                            p.telegram {
+                                a href={ "https://t.me/" (bot) } {
+                                    (PreEscaped(TELEGRAM_LOGO))
+                                    (strings.telegram)
+                                }
                             }
                         }
                     }
-                }
-                footer {
-                    (strings.source_lead)
-                    a href=(SOURCE_URL) { (strings.source_link) }
-                    " ("
-                    a href=(strings.licence_url) { "CC BY 4.0" }
-                    "). "
-                    (strings.disclaimer)
-                    " "
-                    (strings.forecast_source_lead)
-                    a href=(FORECAST_SOURCE_URL) { "Open-Meteo" }
-                    " ("
-                    a href=(strings.licence_url) { "CC BY 4.0" }
-                    ")."
+                    footer {
+                        (strings.source_lead)
+                        a href=(SOURCE_URL) { (strings.source_link) }
+                        " ("
+                        a href=(strings.licence_url) { "CC BY 4.0" }
+                        "). "
+                        (strings.disclaimer)
+                        " "
+                        (strings.forecast_source_lead)
+                        a href=(FORECAST_SOURCE_URL) { "Open-Meteo" }
+                        " ("
+                        a href=(strings.licence_url) { "CC BY 4.0" }
+                        ")."
+                    }
                 }
             }
         }
