@@ -10,7 +10,6 @@
   --ok: #248a3d;
   --ok-halo: #e3f5e6;
   --warn: #b25000;
-  --risk: #8a3e00;
   --danger: #d70015;
   --danger-halo: #ffe5e7;
   --neutral: #6e6e73;
@@ -33,7 +32,6 @@
     --ok: #30d158;
     --ok-halo: #0f2a17;
     --warn: #ff9f0a;
-    --risk: #ff9f0a;
     --danger: #ff453a;
     --danger-halo: #331314;
     --neutral: #8e8e93;
@@ -320,7 +318,7 @@ section h2 {
 
 .hours .temperature.risky {
   font-weight: 700;
-  color: var(--risk);
+  color: var(--warn);
 }
 
 .hours .rain {
@@ -340,7 +338,7 @@ section h2 {
 
 .hours .gusts.risky {
   font-weight: 700;
-  color: var(--risk);
+  color: var(--warn);
 }
 
 .legend,
