@@ -316,15 +316,29 @@ section h2 {
   font-weight: 600;
 }
 
+.hours .temperature.risky {
+  font-weight: 700;
+  color: var(--warn);
+}
+
 .hours .rain {
   font-size: 0.82rem;
   font-weight: 400;
   color: var(--rain);
 }
 
+.hours .rain.risky {
+  font-weight: 700;
+}
+
 .hours .gusts {
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.hours .gusts.risky {
+  font-weight: 700;
+  color: var(--warn);
 }
 
 .legend,

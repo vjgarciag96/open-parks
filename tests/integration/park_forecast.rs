@@ -365,3 +365,171 @@ fn missing_rain_chance_and_gusts_stay_missing() {
 
     assert_eq!(values, Some((None, None)));
 }
+
+#[test]
+fn gusts_of_40_are_risky() {
+    let conditions = HourForecast {
+        gusts: Some(40.0),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_gusts();
+
+    assert!(risky);
+}
+
+#[test]
+fn gusts_showing_as_40_are_risky() {
+    let conditions = HourForecast {
+        gusts: Some(39.6),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_gusts();
+
+    assert!(risky);
+}
+
+#[test]
+fn gusts_showing_as_39_are_not_risky() {
+    let conditions = HourForecast {
+        gusts: Some(39.4),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_gusts();
+
+    assert!(!risky);
+}
+
+#[test]
+fn missing_gusts_are_not_risky() {
+    let conditions = HourForecast {
+        gusts: None,
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_gusts();
+
+    assert!(!risky);
+}
+
+#[test]
+fn a_rain_chance_of_60_is_risky() {
+    let conditions = HourForecast {
+        rain_chance: Some(60),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_rain();
+
+    assert!(risky);
+}
+
+#[test]
+fn a_rain_chance_of_59_is_not_risky() {
+    let conditions = HourForecast {
+        rain_chance: Some(59),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_rain();
+
+    assert!(!risky);
+}
+
+#[test]
+fn a_missing_rain_chance_is_not_risky() {
+    let conditions = HourForecast {
+        rain_chance: None,
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_rain();
+
+    assert!(!risky);
+}
+
+#[test]
+fn a_temperature_showing_as_35_is_risky() {
+    let conditions = HourForecast {
+        temperature: Some(34.5),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_temperature();
+
+    assert!(risky);
+}
+
+#[test]
+fn a_temperature_showing_as_34_is_not_risky() {
+    let conditions = HourForecast {
+        temperature: Some(34.4),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_temperature();
+
+    assert!(!risky);
+}
+
+#[test]
+fn a_temperature_showing_as_0_is_risky() {
+    let conditions = HourForecast {
+        temperature: Some(0.4),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_temperature();
+
+    assert!(risky);
+}
+
+#[test]
+fn a_temperature_showing_as_1_is_not_risky() {
+    let conditions = HourForecast {
+        temperature: Some(0.5),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_temperature();
+
+    assert!(!risky);
+}
+
+#[test]
+fn a_temperature_below_zero_is_risky() {
+    let conditions = HourForecast {
+        temperature: Some(-5.0),
+        ..full_hour()
+    }
+    .conditions()
+    .unwrap();
+
+    let risky = conditions.risky_temperature();
+
+    assert!(risky);
+}

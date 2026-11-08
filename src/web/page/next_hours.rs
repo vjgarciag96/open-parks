@@ -3,7 +3,7 @@ use maud::{Markup, PreEscaped, html};
 
 use crate::i18n::{Age, Strings};
 use crate::open_meteo;
-use crate::park::forecast::{Conditions, HourForecast, HourLabel, NextHour};
+use crate::park::forecast::{Conditions, HourForecast, HourLabel, NextHour, rounded};
 
 use super::weather_icon;
 
@@ -56,15 +56,15 @@ fn column(
                     (MISSING)
                 }
             }
-            span.temperature { (rounded(conditions.temperature)) "°" }
-            span.rain {
+            span.temperature.risky[conditions.risky_temperature()] { (rounded(conditions.temperature)) "°" }
+            span.rain.risky[conditions.risky_rain()] {
                 @if let Some(rain_chance) = conditions.rain_chance {
                     (rain_chance) "%"
                 } @else {
                     (MISSING)
                 }
             }
-            span.gusts {
+            span.gusts.risky[conditions.risky_gusts()] {
                 @if let Some(gusts) = conditions.gusts {
                     (rounded(gusts))
                 } @else {
@@ -117,9 +117,4 @@ fn age_note(strings: &Strings, elapsed: SignedDuration) -> Markup {
             p.forecast-age { (strings.forecast_from) ((strings.ago)(Age::of(elapsed))) }
         }
     }
-}
-
-/// As an integer, so that -0.4 reads as 0 rather than -0.
-fn rounded(value: f64) -> i64 {
-    value.round() as i64
 }

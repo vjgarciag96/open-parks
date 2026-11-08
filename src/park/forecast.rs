@@ -4,6 +4,14 @@ use super::schedule::{self, Schedule, madrid};
 
 const NEXT_HOURS: usize = 12;
 const HOUR: SignedDuration = SignedDuration::from_hours(1);
+/// In °C.
+const HOT_FROM: i64 = 35;
+/// In °C.
+const COLD_UP_TO: i64 = 0;
+/// In %.
+const RAINY_FROM: u8 = 60;
+/// In km/h.
+const GUSTY_FROM: i64 = 40;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Forecast {
@@ -141,6 +149,31 @@ pub struct Conditions {
     pub rain_chance: Option<u8>,
     /// In km/h.
     pub gusts: Option<f64>,
+}
+
+// The cut-offs compare the rounded values, so a number and its highlight
+// always agree.
+impl Conditions {
+    pub fn risky_temperature(&self) -> bool {
+        let temperature = rounded(self.temperature);
+        temperature >= HOT_FROM || temperature <= COLD_UP_TO
+    }
+
+    /// False when the value is missing.
+    pub fn risky_rain(&self) -> bool {
+        self.rain_chance
+            .is_some_and(|rain_chance| rain_chance >= RAINY_FROM)
+    }
+
+    /// False when the value is missing.
+    pub fn risky_gusts(&self) -> bool {
+        self.gusts.is_some_and(|gusts| rounded(gusts) >= GUSTY_FROM)
+    }
+}
+
+/// As an integer, so that -0.4 reads as 0 rather than -0.
+pub fn rounded(value: f64) -> i64 {
+    value.round() as i64
 }
 
 /// The weather a WMO code stands for, among the codes Open-Meteo uses.
