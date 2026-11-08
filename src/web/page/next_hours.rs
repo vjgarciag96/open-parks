@@ -90,8 +90,10 @@ fn blank_column(strings: &Strings, hour: &HourForecast, label: HourLabel) -> Mar
 
 fn hour_label(strings: &Strings, hour: &HourForecast, label: HourLabel) -> Markup {
     html! {
-        @if label == HourLabel::DayAndTime {
-            span.day { (strings.weekday(hour.at.weekday())) }
+        @match label {
+            HourLabel::Now | HourLabel::TodayAndTime => span.day { (strings.today) },
+            HourLabel::DayAndTime => span.day { (strings.weekday(hour.at.weekday())) },
+            HourLabel::Time => {},
         }
         span.hour {
             @if label == HourLabel::Now {

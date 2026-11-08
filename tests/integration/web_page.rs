@@ -1419,7 +1419,7 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
     assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
     let first = concat!(
         r#"<ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
-        r#"<li class="current"><span class="hour">Now</span><span class="icon"><svg "#,
+        r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"><svg "#,
     );
     let first_values = concat!(
         r#"</svg></span><span class="temperature">7°</span>"#,
@@ -1456,24 +1456,33 @@ async fn the_card_has_a_legend_in_each_language() {
 }
 
 #[tokio::test]
-async fn the_current_hour_is_labelled_now_in_spanish() {
-    let body =
-        body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", "/es").await;
+async fn the_current_hour_shows_today_above_now_in_each_language() {
+    let cases = [
+        (
+            "/es",
+            r#"<li class="current"><span class="day">Hoy</span><span class="hour">Ahora</span>"#,
+        ),
+        (
+            "/en",
+            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span>"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let body =
+            body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", uri).await;
 
-    assert!(
-        body.contains(r#"<li class="current"><span class="hour">Ahora</span>"#),
-        "{body}"
-    );
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
 }
 
 #[tokio::test]
-async fn the_opening_hour_is_in_madrid_time() {
+async fn before_opening_the_opening_hour_shows_today_in_madrid_time() {
     let body =
         body_with_forecast(forecast("retiro.json"), "2026-11-02T05:30:00+01:00", "/en").await;
 
     assert!(
         body.contains(
-            r#"aria-label="Hourly forecast"><li class=""><span class="hour">6:00</span>"#
+            r#"aria-label="Hourly forecast"><li class=""><span class="day">Today</span><span class="hour">6:00</span>"#
         ),
         "{body}"
     );
@@ -1508,11 +1517,11 @@ async fn the_closed_block_does_not_count_towards_the_twelve_hours() {
 }
 
 #[tokio::test]
-async fn only_the_first_hour_of_the_next_day_shows_the_day() {
+async fn only_the_first_column_and_the_first_hour_of_the_next_day_show_a_day() {
     let body =
         body_with_forecast(forecast("retiro.json"), "2026-11-02T20:30:00+01:00", "/en").await;
 
-    assert_eq!(body.matches(r#"<span class="day">"#).count(), 1, "{body}");
+    assert_eq!(body.matches(r#"<span class="day">"#).count(), 2, "{body}");
 }
 
 #[tokio::test]
@@ -1638,7 +1647,7 @@ async fn a_missing_temperature_blanks_the_column_but_keeps_its_hour() {
 
     assert!(
         body.contains(concat!(
-            r#"<li class="current"><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
             r#"<span class="temperature"></span><span class="rain"></span>"#,
             r#"<span class="gusts"></span></li>"#,
         )),
@@ -1657,7 +1666,7 @@ async fn a_missing_weather_code_blanks_the_column_but_keeps_its_hour() {
 
     assert!(
         body.contains(concat!(
-            r#"<li class="current"><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
             r#"<span class="temperature"></span><span class="rain"></span>"#,
             r#"<span class="gusts"></span></li>"#,
         )),
