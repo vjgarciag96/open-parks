@@ -32,7 +32,7 @@ impl Lang {
     /// Where the page in this language is.
     pub(crate) fn path(self) -> &'static str {
         match self {
-            Lang::Es => "/es",
+            Lang::Es => "/",
             Lang::En => "/en",
         }
     }

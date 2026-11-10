@@ -115,7 +115,7 @@ fn the_binary_serves_retiros_status_page() {
     let open_meteo = open_meteo_serving_a_forecast(&runtime);
     let (_server, address) = start_server(&sigma, &open_meteo);
 
-    let response = get(&address, "/es");
+    let response = get(&address, "/");
 
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
@@ -138,7 +138,7 @@ fn the_binary_serves_the_sitemap_at_its_public_url() {
     let (head, body) = response.split_once("\r\n\r\n").unwrap();
     assert!(head.starts_with("HTTP/1.1 200 OK"), "{head}");
     assert!(
-        body.contains("<loc>https://retiro.example/es</loc>"),
+        body.contains("<loc>https://retiro.example/</loc>"),
         "{body}"
     );
 }
@@ -189,7 +189,7 @@ fn the_binary_serves_the_page_before_the_first_forecast_arrives() {
     let open_meteo = runtime.block_on(fake_open_meteo::serving(std::future::pending::<()>));
     let (_server, address) = start_server(&sigma, &open_meteo);
 
-    let response = get(&address, "/es");
+    let response = get(&address, "/");
 
     assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
 }

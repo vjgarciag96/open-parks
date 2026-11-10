@@ -124,7 +124,7 @@ async fn text_body(response: Response) -> String {
 
 #[tokio::test]
 async fn the_status_page_is_served_as_html() {
-    let response = get(fetched("code_7_closed.json"), "/es").await;
+    let response = get(fetched("code_7_closed.json"), "/").await;
 
     assert_eq!(response.status(), StatusCode::OK);
     assert_html(&response);
@@ -240,7 +240,7 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
         ),
     ];
     for (name, answer, alert, schedule) in cases {
-        let body = body_at(name, WITHIN_HOURS, "/es").await;
+        let body = body_at(name, WITHIN_HOURS, "/").await;
 
         assert_spanish_headline(
             &body,
@@ -283,7 +283,7 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
         ("unknown_codes.json", "Estado desconocido", reopens),
     ];
     for (name, alert, schedule) in cases {
-        let body = body_at(name, OUTSIDE_HOURS, "/es").await;
+        let body = body_at(name, OUTSIDE_HOURS, "/").await;
 
         assert_spanish_headline(
             &body,
@@ -298,7 +298,7 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
 
 #[tokio::test]
 async fn in_summer_the_park_closes_at_midnight() {
-    let spanish = body_at("code_1_open.json", WITHIN_SUMMER_HOURS, "/es").await;
+    let spanish = body_at("code_1_open.json", WITHIN_SUMMER_HOURS, "/").await;
     let english = body_at("code_1_open.json", WITHIN_SUMMER_HOURS, "/en").await;
 
     assert!(
@@ -314,7 +314,7 @@ async fn in_summer_the_park_closes_at_midnight() {
 #[tokio::test]
 async fn opening_time_never_shows_during_a_weather_closure_or_forecast() {
     for name in ["code_5_red_alert_closure.json", "code_7_closed.json"] {
-        let spanish = body_at(name, OUTSIDE_HOURS, "/es").await;
+        let spanish = body_at(name, OUTSIDE_HOURS, "/").await;
         let english = body_at(name, OUTSIDE_HOURS, "/en").await;
 
         assert!(!spanish.contains("Abre a las"), "fixture {name}: {spanish}");
@@ -340,7 +340,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
         let response = get_at(
             Err(sigma::FetchError::BodyTooLarge),
             now.parse().unwrap(),
-            "/es",
+            "/",
         )
         .await;
 
@@ -358,7 +358,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
 
 #[tokio::test]
 async fn a_failing_upstream_is_a_bad_gateway_page() {
-    let response = get(Err(sigma::FetchError::BodyTooLarge), "/es").await;
+    let response = get(Err(sigma::FetchError::BodyTooLarge), "/").await;
 
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert_html(&response);
@@ -374,7 +374,7 @@ async fn a_failing_upstream_is_a_bad_gateway_page() {
 
 #[tokio::test]
 async fn an_upstream_that_never_responds_is_a_gateway_timeout_page() {
-    let response = get(Err(sigma::FetchError::Timeout), "/es").await;
+    let response = get(Err(sigma::FetchError::Timeout), "/").await;
 
     assert_eq!(response.status(), StatusCode::GATEWAY_TIMEOUT);
     let body = text_body(response).await;
@@ -389,7 +389,7 @@ async fn an_upstream_that_never_responds_is_a_gateway_timeout_page() {
 
 #[tokio::test]
 async fn the_page_runs_no_scripts_and_has_inline_styles_only() {
-    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_1_open.json"), "/").await).await;
 
     assert_eq!(
         body.matches("<script").count(),
@@ -404,7 +404,7 @@ async fn the_page_runs_no_scripts_and_has_inline_styles_only() {
 #[tokio::test]
 async fn the_page_credits_madrid_as_the_source_under_its_licence() {
     for latest in [fetched("code_1_open.json"), Err(sigma::FetchError::Timeout)] {
-        let body = text_body(get(latest, "/es").await).await;
+        let body = text_body(get(latest, "/").await).await;
 
         assert!(
             body.contains(
@@ -554,49 +554,25 @@ async fn a_failing_upstream_outside_hours_is_explained_in_english() {
 }
 
 #[tokio::test]
-async fn the_root_redirects_to_spanish_without_a_language_preference() {
-    let response = get(fetched("code_1_open.json"), "/").await;
+async fn the_root_serves_spanish_whatever_the_language_preference() {
+    for accept_language in ["en", "en-GB,en;q=0.9", "es", "fr", ""] {
+        let response = get_accepting(accept_language).await;
 
-    assert_eq!(response.status(), StatusCode::FOUND);
-    assert_eq!(response.headers()[header::LOCATION], "/es");
-    assert_eq!(response.headers()[header::VARY], "accept-language");
+        assert_eq!(response.status(), StatusCode::OK, "{accept_language:?}");
+        let body = text_body(response).await;
+        assert!(
+            body.contains(r#"<html lang="es">"#),
+            "{accept_language:?}: {body}"
+        );
+    }
 }
 
 #[tokio::test]
-async fn the_root_redirects_to_the_preferred_language() {
-    let cases = [
-        ("en", "/en"),
-        ("en-GB,en;q=0.9", "/en"),
-        ("EN-us", "/en"),
-        ("fr-FR, en;q=0.8, es;q=0.5", "/en"),
-        ("es-ES,es;q=0.9,en;q=0.8", "/es"),
-        ("en;q=0.5, es", "/es"),
-        ("en;q=0", "/es"),
-        ("fr, de", "/es"),
-        ("*", "/es"),
-        ("", "/es"),
-        ("en;q=garbage", "/es"),
-        ("en;Q=0", "/es"),
-        ("en; q = 0", "/es"),
-        ("en;q=2, es", "/es"),
-        ("en;q=inf, es", "/es"),
-        ("en;q=-1", "/es"),
-    ];
-    for (accept_language, location) in cases {
-        let response = get_accepting(accept_language).await;
+async fn the_old_spanish_address_redirects_permanently_to_the_root() {
+    let response = get(fetched("code_1_open.json"), "/es").await;
 
-        assert_eq!(response.status(), StatusCode::FOUND, "{accept_language:?}");
-        assert_eq!(
-            response.headers()[header::LOCATION],
-            location,
-            "{accept_language:?}"
-        );
-        assert_eq!(
-            response.headers()[header::VARY],
-            "accept-language",
-            "{accept_language:?}"
-        );
-    }
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(response.headers()[header::LOCATION], "/");
 }
 
 #[tokio::test]
@@ -606,7 +582,7 @@ async fn each_page_links_to_the_other_language() {
             false => fetched("code_1_open.json"),
             true => Err(sigma::FetchError::Timeout),
         };
-        let spanish = text_body(get(latest(), "/es").await).await;
+        let spanish = text_body(get(latest(), "/").await).await;
         let english = text_body(get(latest(), "/en").await).await;
 
         assert!(
@@ -614,7 +590,7 @@ async fn each_page_links_to_the_other_language() {
             "{spanish}"
         );
         assert!(
-            english.contains(r#"<a href="/es" hreflang="es" lang="es">Español</a>"#),
+            english.contains(r#"<a href="/" hreflang="es" lang="es">Español</a>"#),
             "{english}"
         );
     }
@@ -656,7 +632,7 @@ async fn the_english_page_credits_madrid_as_the_source_under_its_licence() {
 
 #[tokio::test]
 async fn the_page_shows_the_status_details() {
-    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/").await).await;
 
     assert!(
         body.contains("<dt>Fechas de la incidencia</dt><dd>12/10/2026</dd>"),
@@ -683,7 +659,7 @@ async fn every_reopening_forecast_is_shown() {
         ("unknown_codes.json", "Desconocida"),
     ];
     for (name, reopening) in cases {
-        let body = text_body(get(fetched(name), "/es").await).await;
+        let body = text_body(get(fetched(name), "/").await).await;
 
         assert!(
             body.contains(&format!("<dt>Reapertura</dt><dd>{reopening}</dd>")),
@@ -694,7 +670,7 @@ async fn every_reopening_forecast_is_shown() {
 
 #[tokio::test]
 async fn absent_details_are_left_out() {
-    let body = text_body(get(fetched("code_5_red_alert_closure.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_5_red_alert_closure.json"), "/").await).await;
 
     assert!(
         body.contains("<dt>Fechas de la incidencia</dt><dd>12/10/2026</dd>"),
@@ -711,7 +687,7 @@ async fn absent_details_are_left_out() {
 #[tokio::test]
 async fn an_open_park_shows_no_incident_dates() {
     // code_1_open.json carries a date, as SIGMA sends with no incident.
-    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_1_open.json"), "/").await).await;
 
     assert!(!body.contains("10/10/2026"), "{body}");
     assert!(!body.contains("<dl>"), "{body}");
@@ -721,7 +697,7 @@ async fn an_open_park_shows_no_incident_dates() {
 async fn an_open_park_shows_no_incident_hours() {
     // code_1_open_with_hours.json carries hours, as SIGMA can send with no
     // incident.
-    let body = text_body(get(fetched("code_1_open_with_hours.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_1_open_with_hours.json"), "/").await).await;
 
     assert!(!body.contains("03:00 a 12:00"), "{body}");
     assert!(!body.contains("<dl>"), "{body}");
@@ -729,7 +705,7 @@ async fn an_open_park_shows_no_incident_hours() {
 
 #[tokio::test]
 async fn a_status_without_details_shows_no_details_list() {
-    let body = text_body(get(fetched("blank_strings.json"), "/es").await).await;
+    let body = text_body(get(fetched("blank_strings.json"), "/").await).await;
 
     assert!(!body.contains("<dl>"), "{body}");
 }
@@ -750,7 +726,7 @@ async fn the_page_says_when_and_how_long_ago_the_status_was_fetched() {
         ("2026-10-11T09:29:00Z", "hace menos de un minuto"),
     ];
     for (now, ago) in cases {
-        let body = body_at("code_1_open.json", now, "/es").await;
+        let body = body_at("code_1_open.json", now, "/").await;
 
         assert!(
             body.contains(&format!(
@@ -776,7 +752,7 @@ async fn the_fetch_time_is_in_madrid_time_whatever_the_season() {
             status: sigma::decode(&fixture("code_1_open.json")).unwrap(),
             fetched_at: fetched_at.parse().unwrap(),
         });
-        let body = text_body(get_at(latest, fetched_at.parse().unwrap(), "/es").await).await;
+        let body = text_body(get_at(latest, fetched_at.parse().unwrap(), "/").await).await;
 
         assert!(
             body.contains(&format!(
@@ -796,7 +772,7 @@ async fn a_status_fetched_ten_minutes_ago_or_more_is_flagged_as_stale() {
         ("2026-10-12T09:30:00Z", true),
     ];
     for (now, flagged) in cases {
-        let body = body_at("code_1_open.json", now, "/es").await;
+        let body = body_at("code_1_open.json", now, "/").await;
 
         assert_eq!(body.contains(stale), flagged, "now {now}: {body}");
     }
@@ -835,7 +811,7 @@ async fn the_incident_hours_are_labelled_apart_from_the_parks_hours_in_english()
 async fn each_page_shows_the_parks_hours_in_both_seasons() {
     let cases = [
         (
-            "/es",
+            "/",
             r#"<section class="schedule"><h2>Horario</h2><table class="opening-hours"><tr class="row"><th scope="row">Octubre–Marzo</th><td>6:00–22:00</td></tr><tr class="row"><th scope="row">Abril–Septiembre</th><td>6:00–24:00</td></tr></table>"#,
         ),
         (
@@ -859,7 +835,7 @@ async fn each_page_shows_the_parks_hours_in_both_seasons() {
 async fn the_next_hours_card_sits_between_the_alerts_and_the_parks_hours() {
     let cases = [
         (
-            "/es",
+            "/",
             concat!(
                 r#"</span></p></section><section class="next-hours"><h2>Próximas horas</h2>"#,
                 r#"<p class="unavailable">La previsión no está disponible.</p></section>"#,
@@ -888,7 +864,7 @@ async fn the_page_links_to_the_telegram_bot_when_there_is_one() {
         || fetched("code_1_open.json"),
         || Err(sigma::FetchError::Timeout),
     ] {
-        let spanish = text_body(get_with_bot(latest(), "/es").await).await;
+        let spanish = text_body(get_with_bot(latest(), "/").await).await;
         let english = text_body(get_with_bot(latest(), "/en").await).await;
 
         assert!(
@@ -918,7 +894,7 @@ async fn the_page_has_no_telegram_link_without_a_bot() {
         || fetched("code_1_open.json"),
         || Err(sigma::FetchError::Timeout),
     ] {
-        for uri in ["/es", "/en"] {
+        for uri in ["/", "/en"] {
             let body = text_body(get(latest(), uri).await).await;
 
             assert!(!body.contains("t.me"), "{uri}: {body}");
@@ -931,7 +907,7 @@ async fn the_page_has_no_telegram_link_without_a_bot() {
 async fn each_page_has_a_title_and_description_in_its_language() {
     let cases = [
         (
-            "/es",
+            "/",
             "<title>¿Está abierto hoy el Parque del Retiro de Madrid?</title>",
             r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y los cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento.">"#,
         ),
@@ -956,7 +932,7 @@ async fn each_page_has_a_title_and_description_in_its_language() {
 
 #[tokio::test]
 async fn each_page_keeps_its_text_out_of_search_snippets() {
-    for uri in ["/es", "/en"] {
+    for uri in ["/", "/en"] {
         let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
 
         assert!(
@@ -969,7 +945,7 @@ async fn each_page_keeps_its_text_out_of_search_snippets() {
 #[tokio::test]
 async fn each_page_links_its_canonical_url_and_alternates_with_a_public_url() {
     for (uri, canonical) in [
-        ("/es", "https://retiro.example/es"),
+        ("/", "https://retiro.example/"),
         ("/en", "https://retiro.example/en"),
     ] {
         for latest in [
@@ -980,7 +956,7 @@ async fn each_page_links_its_canonical_url_and_alternates_with_a_public_url() {
 
             for expected in [
                 format!(r#"<link rel="canonical" href="{canonical}">"#),
-                r#"<link rel="alternate" hreflang="es" href="https://retiro.example/es"><link rel="alternate" hreflang="en" href="https://retiro.example/en"><link rel="alternate" hreflang="x-default" href="https://retiro.example/">"#.to_owned(),
+                r#"<link rel="alternate" hreflang="es" href="https://retiro.example/"><link rel="alternate" hreflang="en" href="https://retiro.example/en"><link rel="alternate" hreflang="x-default" href="https://retiro.example/">"#.to_owned(),
                 format!(r#"<meta property="og:url" content="{canonical}">"#),
             ] {
                 assert!(body.contains(&expected), "{uri}: {expected}: {body}");
@@ -991,7 +967,7 @@ async fn each_page_links_its_canonical_url_and_alternates_with_a_public_url() {
 
 #[tokio::test]
 async fn the_page_has_no_absolute_links_to_itself_without_a_public_url() {
-    for uri in ["/es", "/en"] {
+    for uri in ["/", "/en"] {
         let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
 
         assert!(!body.contains("canonical"), "{uri}: {body}");
@@ -1030,7 +1006,7 @@ async fn the_link_preview_names_the_cause_of_a_closure() {
         ),
     ];
     for (name, now, title) in cases {
-        let body = body_at(name, now, "/es").await;
+        let body = body_at(name, now, "/").await;
 
         let expected = format!(r#"<meta property="og:title" content="{title}">"#);
         assert!(body.contains(&expected), "fixture {name} at {now}: {body}");
@@ -1039,7 +1015,7 @@ async fn the_link_preview_names_the_cause_of_a_closure() {
 
 #[tokio::test]
 async fn the_link_preview_is_in_the_pages_language() {
-    let spanish = body_at("code_1_open.json", OUTSIDE_HOURS, "/es").await;
+    let spanish = body_at("code_1_open.json", OUTSIDE_HOURS, "/").await;
     let english = body_at("code_1_open.json", OUTSIDE_HOURS, "/en").await;
 
     for expected in [
@@ -1061,7 +1037,7 @@ async fn the_link_preview_is_in_the_pages_language() {
 
 #[tokio::test]
 async fn the_page_links_its_favicon() {
-    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_1_open.json"), "/").await).await;
 
     assert!(
         body.contains(r#"<link rel="icon" href="/favicon.svg" type="image/svg+xml">"#),
@@ -1115,7 +1091,7 @@ async fn the_sitemap_lists_each_language_with_its_alternates() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/xml");
     let alternates = concat!(
-        r#"<xhtml:link rel="alternate" hreflang="es" href="https://retiro.example/es"/>"#,
+        r#"<xhtml:link rel="alternate" hreflang="es" href="https://retiro.example/"/>"#,
         r#"<xhtml:link rel="alternate" hreflang="en" href="https://retiro.example/en"/>"#,
         r#"<xhtml:link rel="alternate" hreflang="x-default" href="https://retiro.example/"/>"#,
     );
@@ -1125,7 +1101,7 @@ async fn the_sitemap_lists_each_language_with_its_alternates() {
             concat!(
                 r#"<?xml version="1.0" encoding="UTF-8"?>"#,
                 r#"<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">"#,
-                "<url><loc>https://retiro.example/es</loc>{alternates}</url>",
+                "<url><loc>https://retiro.example/</loc>{alternates}</url>",
                 "<url><loc>https://retiro.example/en</loc>{alternates}</url>",
                 "</urlset>",
             ),
@@ -1151,7 +1127,7 @@ fn structured_data(body: &str) -> serde_json::Value {
 
 #[tokio::test]
 async fn each_page_describes_the_park_as_structured_data_in_its_language() {
-    for (uri, name) in [("/es", "Parque del Retiro"), ("/en", "Retiro Park")] {
+    for (uri, name) in [("/", "Parque del Retiro"), ("/en", "Retiro Park")] {
         for latest in [
             || fetched("code_1_open.json"),
             || Err(sigma::FetchError::Timeout),
@@ -1236,7 +1212,7 @@ async fn the_structured_data_gives_the_hours_of_this_season_and_the_next() {
         ),
     ];
     for (now, expected) in cases {
-        let park = structured_data(&body_at("code_1_open.json", now, "/es").await);
+        let park = structured_data(&body_at("code_1_open.json", now, "/").await);
 
         assert_eq!(
             park["openingHoursSpecification"],
@@ -1248,7 +1224,7 @@ async fn the_structured_data_gives_the_hours_of_this_season_and_the_next() {
 
 #[tokio::test]
 async fn the_structured_data_leaves_out_closures_for_alerts() {
-    let body = body_at("code_7_closed.json", FETCHED_AT, "/es").await;
+    let body = body_at("code_7_closed.json", FETCHED_AT, "/").await;
     let park = structured_data(&body);
 
     assert!(
@@ -1260,7 +1236,7 @@ async fn the_structured_data_leaves_out_closures_for_alerts() {
 #[tokio::test]
 async fn the_structured_data_links_the_page_with_a_public_url() {
     for (uri, url) in [
-        ("/es", "https://retiro.example/es"),
+        ("/", "https://retiro.example/"),
         ("/en", "https://retiro.example/en"),
     ] {
         let park = structured_data(
@@ -1273,14 +1249,14 @@ async fn the_structured_data_links_the_page_with_a_public_url() {
 
 #[tokio::test]
 async fn the_structured_data_has_no_url_without_a_public_url() {
-    let park = structured_data(&text_body(get(fetched("code_1_open.json"), "/es").await).await);
+    let park = structured_data(&text_body(get(fetched("code_1_open.json"), "/").await).await);
 
     assert!(park.get("url").is_none(), "{park}");
 }
 
 #[tokio::test]
 async fn each_page_names_the_site_with_a_public_url() {
-    for uri in ["/es", "/en"] {
+    for uri in ["/", "/en"] {
         let body = text_body(get_with_public_url(fetched("code_1_open.json"), uri).await).await;
 
         assert!(
@@ -1296,7 +1272,7 @@ async fn each_page_names_the_site_with_a_public_url() {
 
 #[tokio::test]
 async fn the_site_is_not_described_without_a_public_url() {
-    let body = text_body(get(fetched("code_1_open.json"), "/es").await).await;
+    let body = text_body(get(fetched("code_1_open.json"), "/").await).await;
 
     assert!(!body.contains("WebSite"), "{body}");
 }
@@ -1323,7 +1299,7 @@ async fn llms_txt_says_what_the_site_is_and_links_its_pages_and_api() {
     for expected in [
         "- October–March: 6:00–22:00\n- April–September: 6:00–midnight\n",
         "[Status page in English](https://retiro.example/en)",
-        "[Status page in Spanish](https://retiro.example/es)",
+        "[Status page in Spanish](https://retiro.example/)",
         "[Status API](https://retiro.example/api/v1/parks/retiro/status)",
         "[Telegram bot](https://t.me/retiro_abierto_bot)",
         "[Madrid City Council's park closures page](https://www.madrid.es/",
@@ -1442,7 +1418,7 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
 #[tokio::test]
 async fn the_card_has_a_legend_in_each_language() {
     let cases = [
-        ("/es", "Probabilidad de lluvia. Rachas en km/h"),
+        ("/", "Probabilidad de lluvia. Rachas en km/h"),
         ("/en", "Rain chance. Gusts in km/h"),
     ];
     for (uri, legend) in cases {
@@ -1460,7 +1436,7 @@ async fn the_card_has_a_legend_in_each_language() {
 async fn the_current_hour_shows_today_above_now_in_each_language() {
     let cases = [
         (
-            "/es",
+            "/",
             r#"<li class="current"><span class="day">Hoy</span><span class="hour">Ahora</span>"#,
         ),
         (
@@ -1493,7 +1469,7 @@ async fn before_opening_the_opening_hour_shows_today_in_madrid_time() {
 async fn the_night_shows_as_one_closed_block_before_the_next_days_first_hour_in_each_language() {
     let cases = [
         (
-            "/es",
+            "/",
             r#"<li class="closed">Cerrado 22–6</li><li class=""><span class="day">mar</span><span class="hour">6:00</span>"#,
         ),
         (
@@ -1809,8 +1785,7 @@ async fn the_card_says_the_forecast_is_unavailable_before_the_first_one_arrives(
 
 #[tokio::test]
 async fn the_card_says_the_forecast_is_unavailable_when_no_hour_contains_now() {
-    let body =
-        body_with_forecast(forecast("retiro.json"), "2026-11-04T00:00:00+01:00", "/es").await;
+    let body = body_with_forecast(forecast("retiro.json"), "2026-11-04T00:00:00+01:00", "/").await;
 
     assert!(
         body.contains(r#"<p class="unavailable">La previsión no está disponible.</p>"#),
@@ -1843,8 +1818,7 @@ async fn a_forecast_over_three_hours_old_shows_its_columns_and_its_age() {
 
 #[tokio::test]
 async fn the_age_of_an_old_forecast_is_shown_in_spanish() {
-    let body =
-        body_with_forecast(forecast("retiro.json"), "2026-11-02T14:15:00+01:00", "/es").await;
+    let body = body_with_forecast(forecast("retiro.json"), "2026-11-02T14:15:00+01:00", "/").await;
 
     assert!(
         body.contains(r#"<p class="forecast-age">Previsión de hace 5 horas</p>"#),
@@ -1877,12 +1851,12 @@ async fn an_old_forecast_has_fewer_columns_once_its_data_runs_out() {
 #[tokio::test]
 async fn the_status_is_the_same_with_and_without_a_forecast() {
     let now = "2026-11-02T09:30:00+01:00";
-    let open = get_with_forecast(fetched("code_1_open.json"), None, now, "/es").await;
+    let open = get_with_forecast(fetched("code_1_open.json"), None, now, "/").await;
     let open_with_forecast = get_with_forecast(
         fetched("code_1_open.json"),
         forecast("retiro.json"),
         now,
-        "/es",
+        "/",
     )
     .await;
 
@@ -1893,12 +1867,12 @@ async fn the_status_is_the_same_with_and_without_a_forecast() {
 #[tokio::test]
 async fn a_failing_status_keeps_its_gateway_status_with_and_without_a_forecast() {
     let now = "2026-11-02T09:30:00+01:00";
-    let without = get_with_forecast(Err(sigma::FetchError::Timeout), None, now, "/es").await;
+    let without = get_with_forecast(Err(sigma::FetchError::Timeout), None, now, "/").await;
     let with = get_with_forecast(
         Err(sigma::FetchError::Timeout),
         forecast("retiro.json"),
         now,
-        "/es",
+        "/",
     )
     .await;
 
@@ -1924,7 +1898,7 @@ async fn the_card_still_shows_the_forecast_when_the_status_fails() {
 async fn the_footer_credits_open_meteo_after_the_disclaimer_under_its_licence() {
     let cases = [
         (
-            "/es",
+            "/",
             concat!(
                 "avalada por él. Previsión de ",
                 r#"<a href="https://open-meteo.com/">Open-Meteo</a> ("#,

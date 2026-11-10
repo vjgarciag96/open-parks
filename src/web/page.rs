@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::{IntoResponse, Response};
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
@@ -40,7 +40,7 @@ fn alternates(public_url: &PublicUrl) -> impl Iterator<Item = (&'static str, Str
     Lang::ALL
         .into_iter()
         .map(|lang| (lang.code(), public_url.of(lang.path())))
-        .chain([("x-default", public_url.of("/"))])
+        .chain([("x-default", public_url.of(Lang::Es.path()))])
 }
 
 struct Site {
@@ -68,11 +68,9 @@ pub fn router(
         get(async move |State(state): State<PageState>| retiro_status(&state, lang, clock.now()))
     };
     Router::new()
-        .route(
-            "/",
-            get(async |headers: HeaderMap| redirect_to_preferred(&headers)),
-        )
-        .route("/es", status_in(Lang::Es))
+        .route("/", status_in(Lang::Es))
+        // Where the Spanish page was before it moved to the root.
+        .route("/es", get(async || Redirect::permanent(Lang::Es.path())))
         .route("/en", status_in(Lang::En))
         .route(
             "/robots.txt",
@@ -138,65 +136,6 @@ fn favicon() -> Response {
         FAVICON,
     )
         .into_response()
-}
-
-fn redirect_to_preferred(headers: &HeaderMap) -> Response {
-    let lang = headers
-        .get(header::ACCEPT_LANGUAGE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(preferred)
-        .unwrap_or(Lang::Es);
-    (
-        StatusCode::FOUND,
-        [
-            (header::LOCATION, lang.path()),
-            (header::VARY, "accept-language"),
-        ],
-    )
-        .into_response()
-}
-
-fn preferred(accept_language: &str) -> Option<Lang> {
-    accept_language
-        .split(',')
-        .filter_map(Preference::parse)
-        .filter(|preference| preference.quality > 0.0)
-        .reduce(|best, next| {
-            if next.quality > best.quality {
-                next
-            } else {
-                best
-            }
-        })
-        .map(|preference| preference.lang)
-}
-
-struct Preference {
-    lang: Lang,
-    quality: f32,
-}
-
-impl Preference {
-    fn parse(range: &str) -> Option<Preference> {
-        let (tag, params) = range.split_once(';').unwrap_or((range, ""));
-        Some(Preference {
-            lang: Lang::from_tag(tag)?,
-            quality: quality(params)?,
-        })
-    }
-}
-
-fn quality(params: &str) -> Option<f32> {
-    let q = params.split(';').find_map(|param| {
-        let (name, value) = param.split_once('=')?;
-        name.trim()
-            .eq_ignore_ascii_case("q")
-            .then_some(value.trim())
-    });
-    match q {
-        None => Some(1.0),
-        Some(q) => q.parse().ok().filter(|q| (0.0..=1.0).contains(q)),
-    }
 }
 
 fn retiro_status(

@@ -130,7 +130,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
                  Fechas de la incidencia: 13/10/2026\n\
                  Reapertura: Cuando terminen las inspecciones\n\
                  Observaciones: Viento fuerte\n\n\
-                 https://retiro.example/es"
+                 https://retiro.example/"
             ),
             message(
                 2,
@@ -209,7 +209,7 @@ async fn a_reopening_in_spanish_gives_the_hours() {
             "El Retiro ha vuelto a abrir.\n\
              Abierto con restricciones\n\n\
              Horario de la incidencia: de 14:00 a 20:00 h\n\n\
-             https://retiro.example/es"
+             https://retiro.example/"
         )]
     );
 }
@@ -229,7 +229,7 @@ async fn a_reopening_with_no_alert_leaves_out_the_hours() {
             1,
             "El Retiro ha vuelto a abrir.\n\
              Abierto\n\n\
-             https://retiro.example/es"
+             https://retiro.example/"
         )]
     );
 }
