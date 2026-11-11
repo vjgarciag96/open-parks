@@ -422,6 +422,54 @@ async fn the_page_credits_madrid_as_the_source_under_its_licence() {
     }
 }
 
+// The live capture's window is 12:00-24:00 on 11/11/2026, Madrid time.
+const BEFORE_THE_ALERT: &str = "2026-11-11T10:30:00Z";
+const DURING_THE_ALERT: &str = "2026-11-11T19:06:00Z";
+
+#[tokio::test]
+async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
+    let cases = [
+        (
+            "/",
+            BEFORE_THE_ALERT,
+            "Abierto, cierre previsto por alerta",
+            "Cierre previsto",
+        ),
+        (
+            "/",
+            DURING_THE_ALERT,
+            "Cerrado",
+            "Cerrado por alerta meteorológica",
+        ),
+        (
+            "/en",
+            BEFORE_THE_ALERT,
+            "Open, closure expected due to an alert",
+            "Closure expected",
+        ),
+        (
+            "/en",
+            DURING_THE_ALERT,
+            "Closed",
+            "Closed due to a weather alert",
+        ),
+    ];
+    for (uri, now, answer, alert) in cases {
+        let body = body_at("code_6_live_closure.json", now, uri).await;
+        let expected = Headline {
+            answer,
+            alert,
+            schedule: None,
+        };
+
+        if uri == "/" {
+            assert_spanish_headline(&body, &expected);
+        } else {
+            assert_english_headline(&body, &expected);
+        }
+    }
+}
+
 #[tokio::test]
 async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open() {
     let cases = [

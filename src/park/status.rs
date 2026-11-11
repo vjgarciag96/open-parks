@@ -1,4 +1,7 @@
+use jiff::Timestamp;
 use serde::{Serialize, Serializer};
+
+use crate::park::incident::Window;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParkStatus {
@@ -33,6 +36,22 @@ pub enum ReopeningForecast {
     SeeNotes,
     #[serde(untagged, serialize_with = "unknown")]
     Unknown(i16),
+}
+
+impl ParkStatus {
+    /// The verdict at `now`: a forecast closure is a closure while the
+    /// alert's dates and hours say it applies.
+    pub fn verdict_at(&self, now: Timestamp) -> Verdict {
+        let verdict = self.code.verdict();
+        let under_way = || {
+            let window = Window::read(self.dates.as_deref()?, self.hours.as_deref()?)?;
+            Some(window.contains(now))
+        };
+        match verdict {
+            Verdict::ClosureForecast if under_way() == Some(true) => Verdict::Closed,
+            _ => verdict,
+        }
+    }
 }
 
 impl AlertCode {
