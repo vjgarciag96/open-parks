@@ -18,6 +18,11 @@ Captured from the live layer on 2026-11-06:
 - `code_1_open_with_hours.json`: Retiro's query, with incident hours under
   code 1.
 
+Captured from the live layer on 2026-11-11, while the Ayuntamiento had closed
+Retiro for wind:
+
+- `code_6_live_closure.json`: Retiro's query, as returned.
+
 Every park reported code 1 on the first capture date, so the rest are hand-edited
 copies of the captures above:
 
@@ -34,8 +39,9 @@ copies of the captures above:
 
 The dates, hours and notes in the hand-edited fixtures are invented. The real
 format for `FECHA_INCIDENCIA` ranges is unknown, and `HORARIO_INCIDENCIA` has
-only been seen as `03:00 a 12:00`, so don't design their parsing from these
-files; capture a real response first and add it here.
+only been seen as `03:00 a 12:00`, `12:00 a 24:00` and `12:00-24:00`, so don't
+design their parsing from these files; capture a real response first and add
+it here.
 
 Each file keeps the full response, including the `fields` metadata that
 `decode` ignores, so it reads exactly like what SIGMA sends.

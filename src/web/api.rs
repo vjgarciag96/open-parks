@@ -41,7 +41,7 @@ async fn noindex(mut response: Response) -> Response {
 fn retiro_status(latest: &watch::Receiver<Latest>, now: Timestamp) -> Response {
     let schedule = ScheduleResponse::from(schedule::retiro(now));
     match &*latest.borrow() {
-        Ok(fetched) => Json(StatusResponse::new(fetched, schedule)).into_response(),
+        Ok(fetched) => Json(StatusResponse::new(fetched, now, schedule)).into_response(),
         Err(error) => upstream_failure(error, schedule),
     }
 }
@@ -74,11 +74,11 @@ struct StatusResponse<'a> {
 }
 
 impl<'a> StatusResponse<'a> {
-    fn new(fetched: &'a Fetched, schedule: ScheduleResponse) -> Self {
+    fn new(fetched: &'a Fetched, now: Timestamp, schedule: ScheduleResponse) -> Self {
         let status = &fetched.status;
         StatusResponse {
             code: status.code,
-            verdict: status.code.verdict(),
+            verdict: status.verdict_at(now),
             dates: status.dates.as_deref(),
             hours: status.hours.as_deref(),
             reopening: status.reopening,

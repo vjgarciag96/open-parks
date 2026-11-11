@@ -152,7 +152,7 @@ fn retiro_status(
     let next_hours = next_hours::card(strings, &forecast.borrow(), now);
     match &*latest.borrow() {
         Ok(fetched) => {
-            let alerts = Alerts::Checked(fetched.status.code.verdict());
+            let alerts = Alerts::Checked(fetched.status.verdict_at(now));
             let headline = Headline::new(alerts, &schedule);
             render(
                 lang,

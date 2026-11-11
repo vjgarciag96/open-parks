@@ -18,7 +18,7 @@ use crate::web::public_url::PublicUrl;
 pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     let strings = lang.strings();
     let alerts = match latest {
-        Ok(fetched) => Alerts::Checked(fetched.status.code.verdict()),
+        Ok(fetched) => Alerts::Checked(fetched.status.verdict_at(now)),
         Err(_) => Alerts::Unchecked,
     };
     let schedule = schedule::retiro(now);

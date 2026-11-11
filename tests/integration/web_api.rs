@@ -109,6 +109,25 @@ async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
 }
 
 #[tokio::test]
+async fn a_forecast_closure_is_served_as_closed_once_its_window_is_under_way() {
+    let cases = [
+        ("2026-11-11T10:30:00Z", "closure_forecast"),
+        ("2026-11-11T19:06:00Z", "closed"),
+    ];
+    for (now, verdict) in cases {
+        let response = get_at(
+            fetched("code_6_live_closure.json"),
+            now.parse().unwrap(),
+            RETIRO_STATUS,
+        )
+        .await;
+        let body = json_body(response).await;
+
+        assert_eq!(body["verdict"], json!(verdict), "at {now}");
+    }
+}
+
+#[tokio::test]
 async fn fetched_at_is_served_to_the_second_it_was_fetched_in() {
     let body = json_body(get_retiro_status("code_1_open.json").await).await;
 
