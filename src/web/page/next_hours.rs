@@ -11,6 +11,8 @@ use super::weather_icon;
 const OLD_AFTER: SignedDuration = SignedDuration::from_hours(3);
 /// In place of a value Open-Meteo left out, or a weather code it has no icon for.
 const MISSING: &str = "–";
+const UMBRELLA: &str = include_str!("../../../assets/umbrella.svg");
+const GUST: &str = include_str!("../../../assets/gust.svg");
 
 pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timestamp) -> Markup {
     let hours = forecast
@@ -20,14 +22,17 @@ pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timest
         section.next-hours {
             h2 { (strings.next_hours) }
             @if let (Some(fetched), false) = (forecast, hours.is_empty()) {
-                ol.hours tabindex="0" aria-label=(strings.hourly_forecast) {
-                    @for item in &hours {
-                        @match item {
-                            NextHour::Open { hour, label } => @match hour.conditions() {
-                                Some(conditions) => (column(strings, hour, *label, &conditions)),
-                                None => (blank_column(strings, hour, *label)),
-                            },
-                            NextHour::Closed { from, until } => (closed_block(strings, from, until)),
+                div.forecast {
+                    (keys())
+                    ol.hours tabindex="0" aria-label=(strings.hourly_forecast) {
+                        @for item in &hours {
+                            @match item {
+                                NextHour::Open { hour, label } => @match hour.conditions() {
+                                    Some(conditions) => (column(strings, hour, *label, &conditions)),
+                                    None => (blank_column(strings, hour, *label)),
+                                },
+                                NextHour::Closed { from, until } => (closed_block(strings, from, until)),
+                            }
                         }
                     }
                 }
@@ -36,6 +41,20 @@ pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timest
             } @else {
                 p.unavailable { (strings.forecast_unavailable) }
             }
+        }
+    }
+}
+
+/// Marks the rain and gusts rows, beside the columns rather than in them, so
+/// it stays put while they scroll. The legend says the same in words.
+fn keys() -> Markup {
+    html! {
+        div.keys aria-hidden="true" {
+            span.hour {}
+            span.icon {}
+            span.temperature {}
+            span.rain { (PreEscaped(UMBRELLA)) }
+            span.gusts { (PreEscaped(GUST)) }
         }
     }
 }
