@@ -1431,6 +1431,12 @@ async fn body_with_forecast(forecast: open_meteo::Latest, now: &str, uri: &str) 
     text_body(get_with_forecast(fetched("code_1_open.json"), forecast, now, uri).await).await
 }
 
+/// The open hours in the card, leaving out the keys beside them.
+fn hour_columns(body: &str) -> usize {
+    let (_, hours) = body.split_once(r#"<ol class="hours""#).unwrap();
+    hours.matches(r#"<span class="hour">"#).count()
+}
+
 #[tokio::test]
 async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_now() {
     let body = body_with_forecast(
@@ -1441,9 +1447,9 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
     .await
     .replace(" risky", "");
 
-    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
+    assert_eq!(hour_columns(&body), 12, "{body}");
     let first = concat!(
-        r#"<ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
+        r#"</div><ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
         r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"><svg "#,
     );
     let first_values = concat!(
@@ -1464,6 +1470,22 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
 }
 
 #[tokio::test]
+async fn the_rain_and_gusts_rows_are_marked_with_an_umbrella_and_a_gust() {
+    let body =
+        body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    let keys = concat!(
+        r#"<div class="keys" aria-hidden="true"><span class="hour"></span><span class="icon"></span>"#,
+        r#"<span class="temperature"></span><span class="rain"><svg "#,
+    );
+    assert!(body.contains(keys), "{body}");
+    assert!(
+        body.contains(r#"9-9ZM12 12v6a2 2 0 0 0 4 0"/></svg></span><span class="gusts"><svg "#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
 async fn the_card_has_a_legend_in_each_language() {
     let cases = [
         ("/", "Probabilidad de lluvia. Rachas en km/h"),
@@ -1474,7 +1496,7 @@ async fn the_card_has_a_legend_in_each_language() {
             body_with_forecast(forecast("retiro.json"), "2026-11-02T09:30:00+01:00", uri).await;
 
         assert!(
-            body.contains(&format!(r#"</ol><p class="legend">{legend}</p>"#)),
+            body.contains(&format!(r#"</ol></div><p class="legend">{legend}</p>"#)),
             "{uri}: {body}"
         );
     }
@@ -1538,7 +1560,7 @@ async fn the_closed_block_does_not_count_towards_the_twelve_hours() {
     let body =
         body_with_forecast(forecast("retiro.json"), "2026-11-02T20:30:00+01:00", "/en").await;
 
-    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 12, "{body}");
+    assert_eq!(hour_columns(&body), 12, "{body}");
 }
 
 #[tokio::test]
@@ -1893,7 +1915,7 @@ async fn an_old_forecast_has_fewer_columns_once_its_data_runs_out() {
     let body =
         body_with_forecast(forecast("retiro.json"), "2026-11-03T18:15:00+01:00", "/en").await;
 
-    assert_eq!(body.matches(r#"<span class="hour">"#).count(), 4, "{body}");
+    assert_eq!(hour_columns(&body), 4, "{body}");
 }
 
 #[tokio::test]
