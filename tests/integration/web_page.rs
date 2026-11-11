@@ -222,9 +222,9 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
         ),
         (
             "code_6_red_alert_restrictions.json",
-            "Abierto",
-            "Con restricciones",
-            Some("Cierra a las 22:00"),
+            "Abierto, cierre previsto por alerta",
+            "Cierre previsto",
+            None,
         ),
         (
             "code_7_closed.json",
@@ -272,8 +272,8 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
         ),
         (
             "code_6_red_alert_restrictions.json",
-            "Con restricciones",
-            reopens,
+            "Cierre previsto",
+            Some("Cerrado por horario"),
         ),
         (
             "code_7_closed.json",
@@ -457,9 +457,9 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
         ),
         (
             "code_6_red_alert_restrictions.json",
-            "Open",
-            "Restrictions in place",
-            Some("Closes at 22:00"),
+            "Open, closure expected due to an alert",
+            "Closure expected",
+            None,
         ),
         (
             "code_7_closed.json",
@@ -513,8 +513,8 @@ async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
         ),
         (
             "code_6_red_alert_restrictions.json",
-            "Restrictions in place",
-            reopens,
+            "Closure expected",
+            Some("Closed for the night"),
         ),
         ("code_7_closed.json", "Closed due to a weather alert", None),
         ("unknown_codes.json", "Status unknown", reopens),

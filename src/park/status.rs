@@ -41,11 +41,14 @@ impl AlertCode {
             AlertCode::Open => Verdict::Open,
             // SIGMA describes code 2 as incidents that affect use of the
             // park, not a closure, so it reads as a restriction.
-            AlertCode::Incidents | AlertCode::YellowAlert | AlertCode::RedAlertRestrictions => {
-                Verdict::OpenWithRestrictions
-            }
+            AlertCode::Incidents | AlertCode::YellowAlert => Verdict::OpenWithRestrictions,
             AlertCode::OrangeAlert => Verdict::OpenStayNotAdvised,
-            AlertCode::RedAlertClosure => Verdict::ClosureForecast,
+            // SIGMA labels code 6 as restrictions, but Madrid's protocol
+            // closes Retiro under any red alert, and on 11/11/2026 Retiro
+            // closed while SIGMA showed code 6.
+            AlertCode::RedAlertClosure | AlertCode::RedAlertRestrictions => {
+                Verdict::ClosureForecast
+            }
             AlertCode::Closed => Verdict::Closed,
             AlertCode::Unknown(_) => Verdict::Unknown,
         }
