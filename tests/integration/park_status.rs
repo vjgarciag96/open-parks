@@ -8,12 +8,8 @@ fn open_park_is_open() {
 }
 
 #[test]
-fn incidents_and_restricting_alerts_leave_the_park_open_with_restrictions() {
-    for code in [
-        AlertCode::Incidents,
-        AlertCode::YellowAlert,
-        AlertCode::RedAlertRestrictions,
-    ] {
+fn incidents_and_yellow_alert_leave_the_park_open_with_restrictions() {
+    for code in [AlertCode::Incidents, AlertCode::YellowAlert] {
         let verdict = code.verdict();
 
         assert_eq!(verdict, Verdict::OpenWithRestrictions, "{code:?}");
@@ -30,6 +26,13 @@ fn orange_alert_leaves_the_park_open_but_advises_against_staying() {
 #[test]
 fn red_alert_closure_forecasts_a_closure() {
     let verdict = AlertCode::RedAlertClosure.verdict();
+
+    assert_eq!(verdict, Verdict::ClosureForecast);
+}
+
+#[test]
+fn red_alert_restrictions_forecasts_a_closure() {
+    let verdict = AlertCode::RedAlertRestrictions.verdict();
 
     assert_eq!(verdict, Verdict::ClosureForecast);
 }

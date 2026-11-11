@@ -96,7 +96,7 @@ async fn retiro_status_is_served_as_machine_values_with_the_raw_details() {
         body,
         json!({
             "code": "red_alert_restrictions",
-            "verdict": "open_with_restrictions",
+            "verdict": "closure_forecast",
             "dates": "12/10/2026",
             "hours": "de 14:00 a 20:00 h",
             "reopening": null,
@@ -142,7 +142,7 @@ async fn every_alert_code_is_served_by_name_with_its_verdict() {
         (
             "code_6_red_alert_restrictions.json",
             "red_alert_restrictions",
-            "open_with_restrictions",
+            "closure_forecast",
         ),
         ("code_7_closed.json", "closed", "closed"),
         ("unknown_codes.json", "unknown", "unknown"),

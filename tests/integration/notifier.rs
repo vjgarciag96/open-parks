@@ -15,15 +15,18 @@ use crate::support::timeouts::GENEROUS_TIMEOUT;
 
 const OFTEN: Duration = Duration::from_millis(10);
 
-const OPEN_CODES: [AlertCode; 5] = [
+const OPEN_CODES: [AlertCode; 4] = [
     AlertCode::Open,
     AlertCode::Incidents,
     AlertCode::YellowAlert,
     AlertCode::OrangeAlert,
-    AlertCode::RedAlertRestrictions,
 ];
 
-const CLOSING_CODES: [AlertCode; 2] = [AlertCode::RedAlertClosure, AlertCode::Closed];
+const CLOSING_CODES: [AlertCode; 3] = [
+    AlertCode::RedAlertClosure,
+    AlertCode::RedAlertRestrictions,
+    AlertCode::Closed,
+];
 
 fn decoded(fixture_name: &str) -> ParkStatus {
     sigma::decode(&fixture(fixture_name)).unwrap()
