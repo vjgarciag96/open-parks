@@ -277,10 +277,14 @@ fn fixtures() -> std::io::Result<Vec<(String, String)>> {
 }
 
 async fn render(router: Router, lang: &str) -> Vec<u8> {
-    let request = Request::get(format!("/{lang}"))
-        .body(Body::empty())
-        .unwrap();
+    // Spanish is served at the root; /es only redirects there.
+    let path = match lang {
+        "es" => "/".to_owned(),
+        lang => format!("/{lang}"),
+    };
+    let request = Request::get(&path).body(Body::empty()).unwrap();
     let response = router.oneshot(request).await.unwrap();
+    assert!(!response.status().is_redirection(), "{path} redirects");
     response
         .into_body()
         .collect()
