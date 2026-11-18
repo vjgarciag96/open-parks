@@ -44,7 +44,7 @@ impl ParkStatus {
     pub fn verdict_at(&self, now: Timestamp) -> Verdict {
         let verdict = self.code.verdict();
         let under_way = || {
-            let window = Window::read(self.dates.as_deref()?, self.hours.as_deref())?;
+            let window = Window::read(self.dates.as_deref()?, self.hours.as_deref()?)?;
             Some(window.contains(now))
         };
         match verdict {
