@@ -23,6 +23,20 @@ Retiro for wind:
 
 - `code_6_live_closure.json`: Retiro's query, as returned.
 
+Captured from the live layer on 2026-11-18, the evening Retiro closed under a
+red alert:
+
+- `code_7_live_closure_without_hours.json`: Retiro's query, as returned at
+  19:53 Madrid time, with code 7 and the date but no hours.
+- `code_5_live_forecast_without_hours.json`: the same response with code 5,
+  as SIGMA returned it at 19:26, and the site still fetched at 19:38, while
+  the park was still open. The
+  attributes were recorded field by field at the time; the rest of the response
+  is the 19:53 capture, identical to the 11/11 one. SIGMA switched to code 7
+  between 19:38 and 19:44, before the 21:00 closure newspapers had reported.
+  Neither code came with hours, so a date alone doesn't say when a closure
+  starts.
+
 Every park reported code 1 on the first capture date, so the rest are hand-edited
 copies of the captures above:
 
