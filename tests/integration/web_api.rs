@@ -128,6 +128,30 @@ async fn a_forecast_closure_is_served_as_closed_once_its_window_is_under_way() {
 }
 
 #[tokio::test]
+async fn a_closure_alert_without_hours_is_closed_only_once_sigma_says_closed() {
+    // On 18/11/2026 SIGMA gave Retiro code 5 with only the date, while the
+    // park was still open, then code 7 with the same date once it closed.
+    let cases = [
+        (
+            "code_5_live_forecast_without_hours.json",
+            "2026-11-18T18:26:49Z",
+            "closure_forecast",
+        ),
+        (
+            "code_7_live_closure_without_hours.json",
+            "2026-11-18T18:44:51Z",
+            "closed",
+        ),
+    ];
+    for (fixture_name, now, verdict) in cases {
+        let response = get_at(fetched(fixture_name), now.parse().unwrap(), RETIRO_STATUS).await;
+        let body = json_body(response).await;
+
+        assert_eq!(body["verdict"], json!(verdict), "{fixture_name} at {now}");
+    }
+}
+
+#[tokio::test]
 async fn fetched_at_is_served_to_the_second_it_was_fetched_in() {
     let body = json_body(get_retiro_status("code_1_open.json").await).await;
 
