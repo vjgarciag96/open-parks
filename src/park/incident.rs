@@ -1,8 +1,8 @@
 //! When an alert applies, read from SIGMA's free-text dates and hours.
 //!
 //! Only the formats seen live are read: one date as `11/11/2026`, and hours
-//! as `12:00-24:00` or `03:00 a 12:00`. Anything else has no window, since a
-//! guess could call the park closed when it isn't.
+//! as `12:00-24:00` or `03:00 a 12:00`, or none for the whole day. Anything
+//! else has no window, since a guess could call the park closed when it isn't.
 
 use jiff::civil::{Date, Time};
 use jiff::{Timestamp, ToSpan};
@@ -17,8 +17,15 @@ pub(crate) struct Window {
 }
 
 impl Window {
-    pub(crate) fn read(dates: &str, hours: &str) -> Option<Window> {
+    /// With no hours, the alert applies to the whole day, as on 18/11/2026.
+    pub(crate) fn read(dates: &str, hours: Option<&str>) -> Option<Window> {
         let day = date(dates.trim())?;
+        let Some(hours) = hours else {
+            return Some(Window {
+                start: at(day, "00:00")?,
+                end: at(day, "24:00")?,
+            });
+        };
         let (from, to) = hours
             .trim()
             .split_once(" a ")
