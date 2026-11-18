@@ -85,6 +85,23 @@ fn a_forecast_closure_is_a_closure_while_its_window_is_under_way() {
 }
 
 #[test]
+fn a_forecast_closure_with_a_date_but_no_hours_is_a_closure_all_that_day() {
+    for code in [AlertCode::RedAlertClosure, AlertCode::RedAlertRestrictions] {
+        let status = red_alert(code, Some("18/11/2026"), None);
+
+        for (now, verdict) in [
+            ("2026-11-17T23:59", Verdict::ClosureForecast),
+            ("2026-11-18T00:00", Verdict::Closed),
+            ("2026-11-18T19:30", Verdict::Closed),
+            ("2026-11-18T23:59", Verdict::Closed),
+            ("2026-11-19T00:00", Verdict::ClosureForecast),
+        ] {
+            assert_eq!(status.verdict_at(at(now)), verdict, "{code:?} at {now}");
+        }
+    }
+}
+
+#[test]
 fn a_forecast_closure_is_still_a_forecast_outside_its_window() {
     let status = red_alert(
         AlertCode::RedAlertRestrictions,
@@ -110,7 +127,6 @@ fn a_forecast_closure_is_still_a_forecast_outside_its_window() {
 fn a_forecast_closure_whose_window_cant_be_read_stays_a_forecast() {
     let cases = [
         (None, Some("12:00-24:00")),
-        (Some("11/11/2026"), None),
         (Some("11/11/2026 - 12/11/2026"), Some("12:00-24:00")),
         (Some("11/11/2026"), Some("Todo el día")),
         (Some("11/11/2026"), Some("20:00 a 12:00")),
