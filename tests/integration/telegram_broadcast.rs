@@ -125,8 +125,7 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
         [
             message(
                 1,
-                "El Retiro ha cerrado.\n\
-                 Cerrado por alerta meteorológica\n\n\
+                "El Retiro ha cerrado por alerta meteorológica.\n\n\
                  Fechas de la incidencia: 13/10/2026\n\
                  Reapertura: Cuando terminen las inspecciones\n\
                  Observaciones: Viento fuerte\n\n\
@@ -134,12 +133,11 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
             ),
             message(
                 2,
-                "Retiro has closed.\n\
-                 Closed due to a weather alert\n\n\
+                "Retiro has closed due to a weather alert.\n\n\
                  Incident dates: 13/10/2026\n\
                  Reopening: Once inspections finish\n\
                  Notes: Viento fuerte\n\n\
-                 https://retiro.example/en"
+                 https://retiro.example/"
             ),
         ]
     );
@@ -166,24 +164,18 @@ async fn the_wording_tells_a_closure_forecast_an_escalation_and_a_reopening_apar
         delivery.send(notification).await;
     }
 
-    let link = "\n\nhttps://retiro.example/en";
+    let link = "\n\nhttps://retiro.example/";
     assert_eq!(
         delivery.sent(),
         [
+            message(1, &format!("Retiro is expected to close.{link}")),
             message(
                 1,
-                &format!("Retiro is expected to close.\nClosure expected{link}")
+                &format!("Retiro has closed due to a weather alert, as expected.{link}")
             ),
             message(
                 1,
-                &format!("Retiro has closed, as expected.\nClosed due to a weather alert{link}")
-            ),
-            message(
-                1,
-                &format!(
-                    "Retiro is no longer closed, but is still expected to close.\n\
-                     Closure expected{link}"
-                )
+                &format!("Retiro is no longer closed, but is still expected to close.{link}")
             ),
             message(
                 1,
@@ -227,8 +219,7 @@ async fn a_reopening_with_no_alert_leaves_out_the_hours() {
         delivery.sent(),
         [message(
             1,
-            "El Retiro ha vuelto a abrir.\n\
-             Abierto\n\n\
+            "El Retiro ha vuelto a abrir.\n\n\
              https://retiro.example/"
         )]
     );
@@ -242,7 +233,7 @@ async fn without_a_public_url_a_notice_has_no_link() {
         .send(change(Verdict::Closed, AlertCode::Open))
         .await;
 
-    assert_eq!(delivery.sent(), [message(1, "Retiro has reopened.\nOpen")]);
+    assert_eq!(delivery.sent(), [message(1, "Retiro has reopened.")]);
 }
 
 #[tokio::test]
@@ -270,7 +261,11 @@ async fn a_group_upgraded_to_a_supergroup_is_notified_and_kept_under_its_new_id(
     delivery.send(closure()).await;
 
     assert_eq!(delivery.sent_to(), [-100_042, 1]);
-    assert!(delivery.sent()[0].text.starts_with("El Retiro ha cerrado."));
+    assert!(
+        delivery.sent()[0]
+            .text
+            .starts_with("El Retiro ha cerrado por alerta meteorológica.")
+    );
     assert_eq!(
         delivery.subscribers().await,
         [subscriber(-100_042, Lang::Es), subscriber(1, Lang::En)]
