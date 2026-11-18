@@ -66,15 +66,15 @@ pub(super) fn notice(
 ) -> String {
     let strings = lang.strings();
     let status = &notification.status;
-    let mut text = format!(
-        "{}\n{}",
-        (notices(lang).lead)(notification.change()),
-        (strings.headline)(notification.new)
-    );
+    let mut text = (notices(lang).lead)(notification.change()).to_owned();
+    // The lead says it all, but for the restrictions a park reopens with.
+    if let Verdict::OpenWithRestrictions | Verdict::OpenStayNotAdvised = notification.new {
+        write!(text, "\n{}", (strings.headline)(notification.new)).unwrap();
+    }
     write_details(&mut text, strings, status);
     if let Some(public_url) = public_url {
         text.push_str("\n\n");
-        text.push_str(&public_url.of(lang.path()));
+        text.push_str(&public_url.of("/"));
     }
     text
 }
@@ -93,8 +93,10 @@ fn notices(lang: Lang) -> &'static Notices {
 const ES: Notices = Notices {
     lead: |change| match change {
         Change::ClosureForecast => "Se prevé que el Retiro cierre.",
-        Change::Closure => "El Retiro ha cerrado.",
-        Change::Escalation => "El Retiro ha cerrado, como estaba previsto.",
+        Change::Closure => "El Retiro ha cerrado por alerta meteorológica.",
+        Change::Escalation => {
+            "El Retiro ha cerrado por alerta meteorológica, como estaba previsto."
+        }
         Change::StillForecast => "El Retiro ya no está cerrado, pero sigue previsto que cierre.",
         Change::Reopening => "El Retiro ha vuelto a abrir.",
     },
@@ -103,8 +105,8 @@ const ES: Notices = Notices {
 const EN: Notices = Notices {
     lead: |change| match change {
         Change::ClosureForecast => "Retiro is expected to close.",
-        Change::Closure => "Retiro has closed.",
-        Change::Escalation => "Retiro has closed, as expected.",
+        Change::Closure => "Retiro has closed due to a weather alert.",
+        Change::Escalation => "Retiro has closed due to a weather alert, as expected.",
         Change::StillForecast => "Retiro is no longer closed, but is still expected to close.",
         Change::Reopening => "Retiro has reopened.",
     },
