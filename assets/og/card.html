@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; background: #000; }
+.card {
+  width: 1200px;
+  height: 630px;
+  box-sizing: border-box;
+  background: #000;
+  color: #f5f5f7;
+  font-family: -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+  padding: 72px 88px 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.top { display: flex; flex-direction: column; gap: 8px; }
+.question { margin: 0; font-size: 44px; color: #a1a1a6; }
+.word { margin: 0; font-size: 240px; line-height: 0.95; font-weight: 700; letter-spacing: -0.04em; }
+.bottom { display: flex; align-items: center; justify-content: space-between; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px;
+  border-radius: 999px;
+  font-size: 36px;
+  font-weight: 600;
+}
+.dot { width: 20px; height: 20px; border-radius: 50%; }
+.domain { font-size: 34px; font-weight: 500; color: #86868b; }
+
+.green .pill { background: #0f2a17; color: #30d158; }
+.green .dot { background: #30d158; }
+.red .pill { background: #331314; color: #ff6961; }
+.red .dot { background: #ff453a; }
+.neutral .pill { background: #1c1c1e; color: #a1a1a6; }
+.neutral .dot { background: #8e8e93; }
+.orange .pill { background: #33210a; color: #ffb340; }
+.orange .dot { background: #ff9f0a; }
+
+/* No answer to give: the question is the headline. */
+.unknown .question { font-size: 120px; font-weight: 700; color: #f5f5f7; }
+.unknown .word, .unknown .pill { display: none; }
+.unknown .domain { margin-left: auto; }
+</style>
+</head>
+<body class="{{kind}} {{tone}}">
+<div class="card">
+<div class="top">
+<p class="question">{{question}}</p>
+<h1 class="word">{{word}}</h1>
+</div>
+<div class="bottom">
+<span class="pill"><span class="dot"></span>{{pill}}</span>
+<span class="domain">retiroabierto.es</span>
+</div>
+</div>
+</body>
+</html>
