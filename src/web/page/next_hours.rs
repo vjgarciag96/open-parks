@@ -1,7 +1,7 @@
 use jiff::{SignedDuration, Timestamp, Zoned};
 use maud::{Markup, PreEscaped, html};
 
-use crate::i18n::{Age, Strings};
+use crate::i18n::{Age, HourReading, Strings};
 use crate::open_meteo;
 use crate::park::forecast::{Conditions, HourForecast, HourLabel, NextHour, rounded};
 use crate::park::incident::IncidentHours;
@@ -76,44 +76,66 @@ fn column(
     label: HourLabel,
     conditions: &Conditions,
 ) -> Markup {
+    let reading = HourReading {
+        label,
+        at: hour.at.datetime(),
+        weather: conditions.weather,
+        temperature: Some(rounded(conditions.temperature)),
+        rain_chance: conditions.rain_chance,
+        gusts: conditions.gusts.map(rounded),
+    };
     html! {
         li.current[label == HourLabel::Now] {
-            (hour_label(strings, hour, label))
-            span.icon {
-                @if let Some(weather) = conditions.weather {
-                    (PreEscaped(weather_icon::svg(weather, conditions.is_day)))
-                } @else {
-                    (MISSING)
+            div aria-hidden="true" {
+                (hour_label(strings, hour, label))
+                span.icon {
+                    @if let Some(weather) = conditions.weather {
+                        (PreEscaped(weather_icon::svg(weather, conditions.is_day)))
+                    } @else {
+                        (MISSING)
+                    }
+                }
+                span.temperature.risky[conditions.risky_temperature()] { (rounded(conditions.temperature)) "°" }
+                span.rain.risky[conditions.risky_rain()] {
+                    @if let Some(rain_chance) = conditions.rain_chance {
+                        (rain_chance) "%"
+                    } @else {
+                        (MISSING)
+                    }
+                }
+                span.gusts.risky[conditions.risky_gusts()] {
+                    @if let Some(gusts) = conditions.gusts {
+                        (rounded(gusts))
+                    } @else {
+                        (MISSING)
+                    }
                 }
             }
-            span.temperature.risky[conditions.risky_temperature()] { (rounded(conditions.temperature)) "°" }
-            span.rain.risky[conditions.risky_rain()] {
-                @if let Some(rain_chance) = conditions.rain_chance {
-                    (rain_chance) "%"
-                } @else {
-                    (MISSING)
-                }
-            }
-            span.gusts.risky[conditions.risky_gusts()] {
-                @if let Some(gusts) = conditions.gusts {
-                    (rounded(gusts))
-                } @else {
-                    (MISSING)
-                }
-            }
+            span.reading { ((strings.hour_reading)(&reading)) }
         }
     }
 }
 
 /// The hour's label with its other rows empty, so the columns stay aligned.
 fn blank_column(strings: &Strings, hour: &HourForecast, label: HourLabel) -> Markup {
+    let reading = HourReading {
+        label,
+        at: hour.at.datetime(),
+        weather: None,
+        temperature: None,
+        rain_chance: None,
+        gusts: None,
+    };
     html! {
         li.current[label == HourLabel::Now] {
-            (hour_label(strings, hour, label))
-            span.icon {}
-            span.temperature {}
-            span.rain {}
-            span.gusts {}
+            div aria-hidden="true" {
+                (hour_label(strings, hour, label))
+                span.icon {}
+                span.temperature {}
+                span.rain {}
+                span.gusts {}
+            }
+            span.reading { ((strings.hour_reading)(&reading)) }
         }
     }
 }
