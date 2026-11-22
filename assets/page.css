@@ -3,7 +3,7 @@
   --card: #fff;
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --faint: #86868b;
+  --faint: #6e6e73;
   --hairline: rgba(0, 0, 0, 0.09);
   --link: #0066cc;
   --button: #0071e3;
@@ -28,7 +28,8 @@
     --faint: #86868b;
     --hairline: rgba(255, 255, 255, 0.12);
     --link: #2997ff;
-    --button: #0a84ff;
+    /* Dark enough for white text at 4.5:1. */
+    --button: #0071e3;
     --ok: #30d158;
     --ok-halo: #0f2a17;
     --warn: #ff9f0a;
@@ -89,7 +90,19 @@ nav span {
 }
 
 nav a {
+  position: relative;
   color: var(--muted);
+}
+
+/* A 44px tall tap target around the smaller pill. */
+nav a::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
 }
 
 nav a:hover {
