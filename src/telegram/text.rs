@@ -7,7 +7,7 @@ use jiff::Timestamp;
 use crate::i18n::Lang;
 use crate::i18n::Strings;
 use crate::notifier::{Change, Notification};
-use crate::park::headline::{Alerts, Headline};
+use crate::park::headline::{Answer, Headline};
 use crate::park::schedule::{self, Schedule};
 use crate::park::status::{ParkStatus, Verdict};
 use crate::sigma::Latest;
@@ -17,12 +17,12 @@ use crate::web::public_url::PublicUrl;
 /// once, then the details when the status could be fetched.
 pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     let strings = lang.strings();
-    let alerts = match latest {
-        Ok(fetched) => Alerts::Checked(fetched.status.verdict_at(now)),
-        Err(_) => Alerts::Unchecked,
-    };
     let schedule = schedule::retiro(now);
-    let headline = Headline::new(alerts, &schedule);
+    let headline = Headline::at(
+        latest.as_ref().ok().map(|fetched| &fetched.status),
+        &schedule,
+        now,
+    );
     // The page sets the answer, the schedule line and the alert line apart;
     // a message can't, so it gives each fact once, the cause first.
     let lead = match (&schedule, headline.schedule) {
@@ -36,13 +36,9 @@ pub(super) fn status(lang: Lang, latest: &Latest, now: Timestamp) -> String {
     if let (Schedule::Open { .. }, Some(closes_at)) = (&schedule, headline.schedule) {
         write!(text, "\n{}", strings.schedule_line(closes_at)).unwrap();
     }
-    let said = match alerts {
-        Alerts::Checked(Verdict::Closed) => true,
-        Alerts::Unchecked | Alerts::Checked(Verdict::ClosureForecast | Verdict::Unknown) => {
-            matches!(schedule, Schedule::Open { .. })
-        }
-        Alerts::Checked(_) => false,
-    };
+    // Only an open park's plain answer, or the night's, leaves the alerts
+    // unsaid.
+    let said = !matches!(headline.preview, Answer::Open | Answer::ClosedBySchedule);
     if !said {
         write!(
             text,

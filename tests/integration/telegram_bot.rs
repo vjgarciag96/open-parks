@@ -694,6 +694,35 @@ async fn within_hours_status_leaves_out_an_alert_line_that_repeats_the_answer() 
 }
 
 #[tokio::test]
+async fn within_hours_status_leads_with_the_alerts_restrictions_without_repeating_them() {
+    let cases = [
+        (
+            "code_3_yellow_alert.json",
+            "es",
+            "¿Está abierto el Retiro?\n\
+             Abierto con restricciones\n\
+             Cierra a las 22:00\n\n\
+             Fechas de la incidencia: 11/10/2026\n\
+             Horario de la incidencia: de 12:00 a 20:00 h",
+        ),
+        (
+            "code_4_orange_alert.json",
+            "en",
+            "Is Retiro Park open?\n\
+             Open, but staying is not advised\n\
+             Closes at 22:00\n\n\
+             Incident dates: 11 Oct 2026 – 12 Oct 2026\n\
+             Incident hours: 10:00 to 22:00",
+        ),
+    ];
+    for (name, language_code, expected) in cases {
+        let text = status_reply(from_fixture(name), WITHIN_HOURS, language_code).await;
+
+        assert_eq!(text, expected, "fixture {name}");
+    }
+}
+
+#[tokio::test]
 async fn outside_hours_a_failed_fetch_still_says_the_park_is_closed_for_the_night() {
     let text = status_reply(failed(), OUTSIDE_HOURS, "en").await;
 

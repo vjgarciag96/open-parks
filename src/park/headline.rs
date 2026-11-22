@@ -1,9 +1,11 @@
 //! What the page and the bot lead with, decided before it's put into words.
 
+use jiff::Timestamp;
 use jiff::civil::Time;
 
+use crate::park::incident::IncidentHours;
 use crate::park::schedule::Schedule;
-use crate::park::status::Verdict;
+use crate::park::status::{AlertClosure, ParkStatus, Verdict};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Alerts {
@@ -18,11 +20,14 @@ pub(crate) struct Headline {
     pub(crate) preview: Answer,
     pub(crate) alerts: Alerts,
     pub(crate) schedule: Option<ScheduleLine>,
+    pub(crate) closure: Option<AlertClosure>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Answer {
     Open,
+    OpenWithRestrictions,
+    OpenStayNotAdvised,
     OpenClosureExpected,
     /// The alerts were checked, but SIGMA's code isn't one it documents.
     Unknown,
@@ -42,18 +47,29 @@ pub(crate) enum ScheduleLine {
 }
 
 impl Headline {
-    pub(crate) fn new(alerts: Alerts, schedule: &Schedule) -> Headline {
+    /// `status` is None when SIGMA couldn't be read.
+    pub(crate) fn at(status: Option<&ParkStatus>, schedule: &Schedule, now: Timestamp) -> Headline {
+        let alerts = match status {
+            Some(status) => Alerts::Checked(status.verdict_at(now)),
+            None => Alerts::Unchecked,
+        };
         let closed_by_alert = matches!(alerts, Alerts::Checked(Verdict::Closed));
         let closure_ahead =
             matches!(alerts, Alerts::Checked(verdict) if verdict.closure_or_forecast());
         let answer = match (schedule, alerts) {
             (Schedule::Closed { .. }, _) | (_, Alerts::Checked(Verdict::Closed)) => Answer::Closed,
             (Schedule::Open { .. }, Alerts::Unchecked) => Answer::Unchecked,
+            (Schedule::Open { .. }, Alerts::Checked(Verdict::OpenWithRestrictions)) => {
+                Answer::OpenWithRestrictions
+            }
+            (Schedule::Open { .. }, Alerts::Checked(Verdict::OpenStayNotAdvised)) => {
+                Answer::OpenStayNotAdvised
+            }
             (Schedule::Open { .. }, Alerts::Checked(Verdict::ClosureForecast)) => {
                 Answer::OpenClosureExpected
             }
             (Schedule::Open { .. }, Alerts::Checked(Verdict::Unknown)) => Answer::Unknown,
-            (Schedule::Open { .. }, Alerts::Checked(_)) => Answer::Open,
+            (Schedule::Open { .. }, Alerts::Checked(Verdict::Open)) => Answer::Open,
         };
         let preview = match schedule {
             _ if closed_by_alert => Answer::ClosedByAlert,
@@ -72,6 +88,17 @@ impl Headline {
             preview,
             alerts,
             schedule,
+            closure: status.and_then(|status| status.alert_closure_at(now)),
+        }
+    }
+
+    /// The window of an expected closure, worth a line under the answer only
+    /// while the schedule has the park open: closed for the night, the answer
+    /// already says it's closed.
+    pub(crate) fn expected_closure_window(&self) -> Option<IncidentHours> {
+        match self.answer {
+            Answer::OpenClosureExpected => self.closure.and_then(AlertClosure::window),
+            _ => None,
         }
     }
 }

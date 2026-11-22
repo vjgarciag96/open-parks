@@ -1,7 +1,8 @@
 use jiff::Timestamp;
 use serde::{Serialize, Serializer};
 
-use crate::park::incident::Window;
+use crate::park::incident::{ClockTime, IncidentHours, Window};
+use crate::park::schedule::{self, madrid};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParkStatus {
@@ -43,14 +44,104 @@ impl ParkStatus {
     /// alert's dates and hours say it applies.
     pub fn verdict_at(&self, now: Timestamp) -> Verdict {
         let verdict = self.code.verdict();
-        let under_way = || {
-            let window = Window::read(self.dates.as_deref()?, self.hours.as_deref()?)?;
-            Some(window.contains(now))
-        };
+        let under_way = || Some(self.window()?.contains(now));
         match verdict {
             Verdict::ClosureForecast if under_way() == Some(true) => Verdict::Closed,
             _ => verdict,
         }
+    }
+
+    /// What SIGMA says of a closure at `now`, under way or expected.
+    pub(crate) fn alert_closure_at(&self, now: Timestamp) -> Option<AlertClosure> {
+        let today = now.to_zoned(madrid()).date();
+        // A window on another day says nothing of today's closure, and one
+        // that has ended says nothing more.
+        let window = self
+            .window()
+            .filter(|window| window.starts_on(today) && !window.has_ended(now));
+        match self.verdict_at(now) {
+            Verdict::Closed => {
+                let window = window.filter(|window| window.contains(now));
+                let end = match window {
+                    Some(window) if window.ends_by(schedule::closing(today).timestamp()) => {
+                        Some(ClosureEnd::At(window.hours().to))
+                    }
+                    Some(_) => Some(ClosureEnd::RestOfTheDay),
+                    None => self.reopening.map(ClosureEnd::Reopening),
+                };
+                Some(AlertClosure::UnderWay {
+                    window: window.map(Window::hours),
+                    end,
+                })
+            }
+            Verdict::ClosureForecast => Some(AlertClosure::Expected {
+                window: window.map(Window::hours),
+                hours_given: self.hours.is_some(),
+            }),
+            _ => None,
+        }
+    }
+
+    fn window(&self) -> Option<Window> {
+        Window::read(self.dates.as_deref()?, self.hours.as_deref()?)
+    }
+}
+
+/// A weather alert's closure, as far as SIGMA says when it starts or ends.
+/// The window is there only when it can be read, is today's and hasn't
+/// ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AlertClosure {
+    UnderWay {
+        window: Option<IncidentHours>,
+        end: Option<ClosureEnd>,
+    },
+    Expected {
+        window: Option<IncidentHours>,
+        hours_given: bool,
+    },
+}
+
+/// When a closure under way ends, as far as SIGMA says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ClosureEnd {
+    /// Its window ends while the park would be open.
+    At(ClockTime),
+    /// Its window ends after the park's closing time, so the park won't
+    /// open again today.
+    RestOfTheDay,
+    /// SIGMA gives no window for it, only a forecast.
+    Reopening(ReopeningForecast),
+}
+
+impl AlertClosure {
+    pub(crate) fn under_way(self) -> bool {
+        matches!(self, AlertClosure::UnderWay { .. })
+    }
+
+    pub(crate) fn window(self) -> Option<IncidentHours> {
+        match self {
+            AlertClosure::UnderWay { window, .. } | AlertClosure::Expected { window, .. } => window,
+        }
+    }
+
+    /// When a closure under way ends.
+    pub(crate) fn end(self) -> Option<ClosureEnd> {
+        match self {
+            AlertClosure::UnderWay { end, .. } => end,
+            AlertClosure::Expected { .. } => None,
+        }
+    }
+
+    /// Whether a closure is expected without SIGMA saying when.
+    pub(crate) fn hours_missing(self) -> bool {
+        matches!(
+            self,
+            AlertClosure::Expected {
+                hours_given: false,
+                ..
+            }
+        )
     }
 }
 

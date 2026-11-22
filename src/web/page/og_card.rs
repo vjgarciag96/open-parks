@@ -2,8 +2,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 
 use crate::i18n::Lang;
-use crate::park::headline::{Alerts, Answer, Headline};
-use crate::park::status::Verdict;
+use crate::park::headline::{Answer, Headline};
 
 pub(super) const WIDTH: u32 = 1200;
 pub(super) const HEIGHT: u32 = 630;
@@ -61,21 +60,18 @@ fn file_name(card: Card, lang: Lang) -> String {
     format!("{}.{}.png", card.slug(), lang.code())
 }
 
-/// The card for the answer a link preview gives, with the alert's
-/// restrictions when the park is open, as the page's alert line gives them.
+/// The card for the answer a link preview gives.
 fn card(headline: &Headline) -> Card {
-    match (headline.preview, headline.alerts) {
-        (Answer::Open, Alerts::Checked(Verdict::OpenWithRestrictions)) => {
-            Card::OpenWithRestrictions
-        }
-        (Answer::Open, Alerts::Checked(Verdict::OpenStayNotAdvised)) => Card::OpenStayNotAdvised,
-        (Answer::Open, _) => Card::Open,
-        (Answer::OpenClosureExpected, _) => Card::ClosureExpected,
-        (Answer::ClosedByAlert, _) => Card::ClosedByAlert,
-        (Answer::ClosedBySchedule, _) => Card::ClosedBySchedule,
-        (Answer::Unknown | Answer::Unchecked, _) => Card::Unknown,
+    match headline.preview {
+        Answer::Open => Card::Open,
+        Answer::OpenWithRestrictions => Card::OpenWithRestrictions,
+        Answer::OpenStayNotAdvised => Card::OpenStayNotAdvised,
+        Answer::OpenClosureExpected => Card::ClosureExpected,
+        Answer::ClosedByAlert => Card::ClosedByAlert,
+        Answer::ClosedBySchedule => Card::ClosedBySchedule,
+        Answer::Unknown | Answer::Unchecked => Card::Unknown,
         // A preview always names the cause of a closure.
-        (Answer::Closed, _) => Card::ClosedByAlert,
+        Answer::Closed => Card::ClosedByAlert,
     }
 }
 

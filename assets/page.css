@@ -151,7 +151,8 @@ p {
   margin: 0;
 }
 
-.now {
+.now,
+.closure {
   margin-top: 0.4rem;
   font-size: clamp(1.5rem, 5vw, 2.4rem);
   font-weight: 600;
@@ -172,6 +173,7 @@ section {
 }
 
 h1 + section,
+.closure + section,
 .now + section {
   margin-top: 2.25rem;
 }
@@ -219,6 +221,14 @@ section h2 {
 
 .neutral .icon {
   background: var(--neutral);
+}
+
+/* Under the alert line it explains. */
+.no-closure-hours {
+  margin-top: -0.4rem;
+  padding: 0 0 0.9rem 2.2rem;
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 
 .forecast {
