@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
@@ -22,6 +22,7 @@ use crate::web::structured_data;
 
 mod llms_txt;
 mod next_hours;
+mod og_card;
 pub mod weather_icon;
 
 const STYLE: &str = include_str!("../../assets/page.css");
@@ -85,6 +86,10 @@ pub fn router(
             get(async |State(state): State<PageState>| llms_txt::response(&state.site)),
         )
         .route("/favicon.svg", get(async || favicon()))
+        .route(
+            "/og/{file}",
+            get(async |Path(file): Path<String>| og_card::response(&file)),
+        )
         .with_state(PageState {
             latest,
             forecast,
