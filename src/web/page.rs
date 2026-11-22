@@ -167,13 +167,14 @@ fn retiro_status(
 ) -> Response {
     let strings = lang.strings();
     let schedule = schedule::retiro(now);
-    let next_hours = next_hours::card(strings, &forecast.borrow(), now);
     let latest = latest.borrow();
     let headline = Headline::at(
         latest.as_ref().ok().map(|fetched| &fetched.status),
         &schedule,
         now,
     );
+    let closure_window = headline.closure.and_then(AlertClosure::window);
+    let next_hours = next_hours::card(strings, &forecast.borrow(), now, closure_window);
     match &*latest {
         Ok(fetched) => {
             let checked = Checked::of(fetched, now);
