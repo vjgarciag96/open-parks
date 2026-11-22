@@ -134,9 +134,9 @@ async fn a_closure_reaches_every_subscriber_in_their_language() {
             message(
                 2,
                 "Retiro has closed due to a weather alert.\n\n\
-                 Incident dates: 13/10/2026\n\
+                 Incident dates: 13 Oct 2026\n\
                  Reopening: Once inspections finish\n\
-                 Notes: Viento fuerte\n\n\
+                 Notes (City Council’s text, in Spanish): Viento fuerte\n\n\
                  https://retiro.example/"
             ),
         ]

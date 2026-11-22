@@ -8,6 +8,7 @@ use http_body_util::BodyExt;
 use jiff::Timestamp;
 use jiff::civil::date;
 use open_parks::park::forecast::{Forecast, HourForecast};
+use open_parks::park::status::{AlertCode, ParkStatus};
 use open_parks::sigma::{Fetched, Latest};
 use open_parks::web::page;
 use open_parks::web::public_url::PublicUrl;
@@ -865,9 +866,9 @@ async fn the_status_details_are_shown_in_english() {
     let body = body_at("code_7_closed.json", "2026-10-11T12:00:00Z", "/en").await;
 
     for expected in [
-        "<dt>Incident dates</dt><dd>13/10/2026</dd>",
+        "<dt>Incident dates</dt><dd>13 Oct 2026</dd>",
         "<dt>Reopening</dt><dd>See the notes</dd>",
-        "<dt>Notes</dt><dd>El parque permanecerá cerrado hasta la retirada de las ramas caídas.</dd>",
+        "<dt>Notes (City Council’s text, in Spanish)</dt><dd>El parque permanecerá cerrado hasta la retirada de las ramas caídas.</dd>",
         concat!(
             r#"Updated <time datetime="2026-10-11T09:30:00Z">11/10/2026 at 11:30 Madrid time</time>"#,
             ", ",
@@ -884,9 +885,148 @@ async fn the_incident_hours_are_labelled_apart_from_the_parks_hours_in_english()
     let body = text_body(get(fetched("code_6_red_alert_restrictions.json"), "/en").await).await;
 
     assert!(
-        body.contains("<dt>Incident hours</dt><dd>de 14:00 a 20:00 h</dd>"),
+        body.contains("<dt>Incident hours</dt><dd>14:00 to 20:00</dd>"),
         "{body}"
     );
+}
+
+#[tokio::test]
+async fn a_date_range_and_hours_are_translated_in_english() {
+    let body = text_body(get(fetched("code_4_orange_alert.json"), "/en").await).await;
+
+    for expected in [
+        "<dt>Incident dates</dt><dd>11 Oct 2026 – 12 Oct 2026</dd>",
+        "<dt>Incident hours</dt><dd>10:00 to 22:00</dd>",
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_live_date_and_hours_ending_at_midnight_are_translated_in_english() {
+    let body = text_body(get(fetched("code_6_live_closure.json"), "/en").await).await;
+
+    for expected in [
+        "<dt>Incident dates</dt><dd>11 Nov 2026</dd>",
+        "<dt>Incident hours</dt><dd>12:00 to midnight</dd>",
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn dates_and_hours_in_an_unrecognised_format_are_shown_as_sigma_wrote_them_in_english() {
+    let cases = [
+        ("del 11 al 12 de octubre", "por la tarde"),
+        ("31/02/2026", "25:00-26:00"),
+        ("12/10/2026 - 11/10/2026", "de 10:00 a 22:00"),
+        ("1/10/2026", "10:00 a 22:00 h"),
+    ];
+    for (dates, hours) in cases {
+        let latest = Ok(Fetched {
+            status: ParkStatus {
+                code: AlertCode::OrangeAlert,
+                dates: Some(dates.to_owned()),
+                hours: Some(hours.to_owned()),
+                reopening: None,
+                notes: None,
+            },
+            fetched_at: FETCHED_AT.parse().unwrap(),
+        });
+
+        let body = text_body(get(latest, "/en").await).await;
+
+        for expected in [
+            format!("<dt>Incident dates</dt><dd>{dates}</dd>"),
+            format!("<dt>Incident hours</dt><dd>{hours}</dd>"),
+        ] {
+            assert!(body.contains(&expected), "{expected}: {body}");
+        }
+    }
+}
+
+fn orange_alert_on(dates: &str, hours: &str) -> Latest {
+    Ok(Fetched {
+        status: ParkStatus {
+            code: AlertCode::OrangeAlert,
+            dates: Some(dates.to_owned()),
+            hours: Some(hours.to_owned()),
+            reopening: None,
+            notes: None,
+        },
+        fetched_at: FETCHED_AT.parse().unwrap(),
+    })
+}
+
+#[tokio::test]
+async fn hours_ending_past_midnight_are_shown_as_sigma_wrote_them_in_english() {
+    let latest = orange_alert_on("11/10/2026", "12:00-24:30");
+
+    let body = text_body(get(latest, "/en").await).await;
+
+    assert!(
+        body.contains("<dt>Incident hours</dt><dd>12:00-24:30</dd>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn hours_with_minute_sixty_are_shown_as_sigma_wrote_them_in_english() {
+    let latest = orange_alert_on("11/10/2026", "12:60-20:00");
+
+    let body = text_body(get(latest, "/en").await).await;
+
+    assert!(
+        body.contains("<dt>Incident hours</dt><dd>12:60-20:00</dd>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_range_of_one_day_is_translated_as_a_range_in_english() {
+    let latest = orange_alert_on("11/10/2026 - 11/10/2026", "10:00-22:00");
+
+    let body = text_body(get(latest, "/en").await).await;
+
+    assert!(
+        body.contains("<dt>Incident dates</dt><dd>11 Oct 2026 – 11 Oct 2026</dd>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_notes_are_labelled_as_the_city_councils_spanish_text_in_english() {
+    let body = text_body(get(fetched("code_7_closed.json"), "/en").await).await;
+
+    assert!(
+        body.contains("<dt>Notes (City Council’s text, in Spanish)</dt>"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_spanish_page_shows_the_dates_and_hours_as_sigma_wrote_them() {
+    let cases = [
+        (
+            "code_4_orange_alert.json",
+            "11/10/2026 - 12/10/2026",
+            "de 10:00 a 22:00 h",
+        ),
+        ("code_6_live_closure.json", "11/11/2026", "12:00-24:00"),
+    ];
+    for (name, dates, hours) in cases {
+        let body = text_body(get(fetched(name), "/").await).await;
+
+        for expected in [
+            format!("<dt>Fechas de la incidencia</dt><dd>{dates}</dd>"),
+            format!("<dt>Horario de la incidencia</dt><dd>{hours}</dd>"),
+        ] {
+            assert!(
+                body.contains(&expected),
+                "fixture {name}: {expected}: {body}"
+            );
+        }
+    }
 }
 
 #[tokio::test]
