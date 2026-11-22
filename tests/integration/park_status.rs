@@ -115,6 +115,8 @@ fn a_forecast_closure_whose_window_cant_be_read_stays_a_forecast() {
         (Some("11/11/2026"), Some("Todo el día")),
         (Some("11/11/2026"), Some("20:00 a 12:00")),
         (Some("31/11/2026"), Some("12:00-24:00")),
+        // Readable for display, but never seen live.
+        (Some("11/11/2026"), Some("de 12:00 a 24:00 h")),
     ];
     for (dates, hours) in cases {
         let status = red_alert(AlertCode::RedAlertRestrictions, dates, hours);
@@ -123,6 +125,36 @@ fn a_forecast_closure_whose_window_cant_be_read_stays_a_forecast() {
             status.verdict_at(at("2026-11-11T20:06")),
             Verdict::ClosureForecast,
             "{dates:?} {hours:?}"
+        );
+    }
+}
+
+#[test]
+fn a_forecast_closure_is_over_at_the_end_of_its_window() {
+    let status = red_alert(
+        AlertCode::RedAlertRestrictions,
+        Some("11/11/2026"),
+        Some("12:00-18:00"),
+    );
+
+    let verdict = status.verdict_at(at("2026-11-11T18:00"));
+
+    assert_eq!(verdict, Verdict::ClosureForecast);
+}
+
+#[test]
+fn a_window_ending_past_midnight_cant_be_read() {
+    for hours in ["12:00-24:30", "12:00-24:01"] {
+        let status = red_alert(
+            AlertCode::RedAlertRestrictions,
+            Some("11/11/2026"),
+            Some(hours),
+        );
+
+        assert_eq!(
+            status.verdict_at(at("2026-11-11T20:06")),
+            Verdict::ClosureForecast,
+            "{hours}"
         );
     }
 }

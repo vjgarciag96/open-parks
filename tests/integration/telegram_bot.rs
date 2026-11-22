@@ -189,9 +189,9 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
              to stop.\n\n\
              Is Retiro Park open?\n\
              Closed due to a weather alert\n\n\
-             Incident dates: 13/10/2026\n\
+             Incident dates: 13 Oct 2026\n\
              Reopening: Once inspections finish\n\
-             Notes: Viento fuerte"
+             Notes (City Council’s text, in Spanish): Viento fuerte"
         )]
     );
 }
@@ -431,9 +431,9 @@ async fn status_replies_with_the_latest_status_without_subscribing() {
             42,
             "Is Retiro Park open?\n\
              Closed due to a weather alert\n\n\
-             Incident dates: 13/10/2026\n\
+             Incident dates: 13 Oct 2026\n\
              Reopening: Once inspections finish\n\
-             Notes: Viento fuerte"
+             Notes (City Council’s text, in Spanish): Viento fuerte"
         )]
     );
 }
