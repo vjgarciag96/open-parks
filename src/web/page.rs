@@ -316,6 +316,31 @@ fn closure_lines(strings: &Strings, headline: &Headline) -> Vec<String> {
     }
 }
 
+/// Where the page offers the Telegram bot.
+#[derive(Clone, Copy)]
+enum Telegram<'a> {
+    /// During a closure, a subscription is what tells someone when it ends,
+    /// so the button moves up to the alerts and subscribes in one tap.
+    InAlerts {
+        bot: &'a str,
+        text: &'static str,
+    },
+    AtTheBottom {
+        bot: &'a str,
+    },
+}
+
+fn telegram_button(href: &str, text: &str) -> Markup {
+    html! {
+        p.telegram {
+            a href=(href) {
+                (PreEscaped(TELEGRAM_LOGO))
+                (text)
+            }
+        }
+    }
+}
+
 fn render(
     lang: Lang,
     site: &Site,
@@ -327,6 +352,19 @@ fn render(
 ) -> Markup {
     let strings = lang.strings();
     let tone = tone(headline.alerts);
+    let telegram = site
+        .telegram_bot_username
+        .as_deref()
+        .map(|bot| match headline.closure {
+            Some(closure) => Telegram::InAlerts {
+                bot,
+                text: match closure.under_way() {
+                    true => strings.telegram_reopen,
+                    false => strings.telegram_close_or_reopen,
+                },
+            },
+            None => Telegram::AtTheBottom { bot },
+        });
     let no_closure_hours = headline.closure.is_some_and(AlertClosure::hours_missing);
     let answer = strings.answer(headline.answer);
     let preview_title = format!("{} {}", strings.question, strings.answer(headline.preview));
@@ -422,6 +460,10 @@ fn render(
                                 p.no-closure-hours { (strings.no_closure_hours) }
                             }
                             (details)
+                            @if let Some(Telegram::InAlerts { bot, text }) = telegram {
+                                (telegram_button(&format!("https://t.me/{bot}?start=subscribe"), text))
+                                p.telegram-hint { (strings.telegram_hint) }
+                            }
                         }
                         (next_hours)
                         section.schedule {
@@ -439,13 +481,8 @@ fn render(
                                 }
                             }
                         }
-                        @if let Some(bot) = &site.telegram_bot_username {
-                            p.telegram {
-                                a href={ "https://t.me/" (bot) } {
-                                    (PreEscaped(TELEGRAM_LOGO))
-                                    (strings.telegram)
-                                }
-                            }
+                        @if let Some(Telegram::AtTheBottom { bot }) = telegram {
+                            (telegram_button(&format!("https://t.me/{bot}"), strings.telegram))
                         }
                     }
                     footer {
