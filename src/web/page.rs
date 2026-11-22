@@ -271,7 +271,7 @@ fn render(
                         link rel="alternate" hreflang=(hreflang) href=(href);
                     }
                     meta property="og:url" content=(public_url.of(lang.path()));
-                    meta property="og:image" content=(public_url.of(&og_card::path(headline.preview, lang)));
+                    meta property="og:image" content=(public_url.of(&og_card::path(headline, lang)));
                     meta property="og:image:width" content=(og_card::WIDTH);
                     meta property="og:image:height" content=(og_card::HEIGHT);
                     meta property="og:image:type" content="image/png";

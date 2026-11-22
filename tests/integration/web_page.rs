@@ -1085,9 +1085,13 @@ async fn the_link_preview_is_in_the_pages_language() {
 
 const OG_CARDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/og");
 
-const CARDS: [&str; 10] = [
+const CARDS: [&str; 14] = [
     "open.es.png",
     "open.en.png",
+    "open-with-restrictions.es.png",
+    "open-with-restrictions.en.png",
+    "open-stay-not-advised.es.png",
+    "open-stay-not-advised.en.png",
     "closure-expected.es.png",
     "closure-expected.en.png",
     "closed-by-alert.es.png",
@@ -1240,6 +1244,42 @@ async fn the_preview_image_shows_the_answer_the_preview_gives() {
             WITHIN_HOURS,
             "/en",
             "https://retiro.example/og/open.en.png",
+        ),
+        (
+            fetched("code_2_incidents.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/open-with-restrictions.es.png",
+        ),
+        (
+            fetched("code_2_incidents.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/open-with-restrictions.en.png",
+        ),
+        (
+            fetched("code_3_yellow_alert.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/open-with-restrictions.es.png",
+        ),
+        (
+            fetched("code_3_yellow_alert.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/open-with-restrictions.en.png",
+        ),
+        (
+            fetched("code_4_orange_alert.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/open-stay-not-advised.es.png",
+        ),
+        (
+            fetched("code_4_orange_alert.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/open-stay-not-advised.en.png",
         ),
         (
             fetched("code_5_red_alert_closure.json"),

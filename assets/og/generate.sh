@@ -14,11 +14,15 @@ trap 'rm -rf "$work"' EXIT
 
 # file|lang|kind|tone|question|word|pill
 cards='open.es|es|status|green|¿Está abierto el Retiro?|Abierto|Sin alertas
+open-with-restrictions.es|es|status|orange|¿Está abierto el Retiro?|Abierto|Con restricciones
+open-stay-not-advised.es|es|status|orange|¿Está abierto el Retiro?|Abierto|No se recomienda permanecer
 closure-expected.es|es|status|orange|¿Está abierto el Retiro?|Abierto|Cierre previsto por alerta
 closed-by-alert.es|es|status|red|¿Está abierto el Retiro?|Cerrado|Alerta meteorológica
 closed-by-schedule.es|es|status|neutral|¿Está abierto el Retiro?|Cerrado|Por horario
 unknown.es|es|unknown||¿Está abierto el Retiro?||
 open.en|en|status|green|Is Retiro Park open?|Open|No alerts
+open-with-restrictions.en|en|status|orange|Is Retiro Park open?|Open|Restrictions in place
+open-stay-not-advised.en|en|status|orange|Is Retiro Park open?|Open|Staying is not advised
 closure-expected.en|en|status|orange|Is Retiro Park open?|Open|Closure expected due to an alert
 closed-by-alert.en|en|status|red|Is Retiro Park open?|Closed|Weather alert
 closed-by-schedule.en|en|status|neutral|Is Retiro Park open?|Closed|Outside opening hours
