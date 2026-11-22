@@ -253,6 +253,13 @@ main > .stale {
   color: var(--muted);
 }
 
+.alert-closure {
+  margin-top: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--danger);
+}
+
 .forecast {
   display: flex;
   margin: 0.6rem 0 0;
@@ -301,12 +308,13 @@ main > .stale {
   background: var(--soft);
 }
 
-/* Wide enough for "Closed" and its hours on two lines. */
+/* Wide enough for "Cerrado por horario" over its hours. */
 .hours .closed {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 64px;
+  width: 80px;
   margin: 0 4px;
   padding: 0.5rem 0.3rem;
   background: var(--soft);

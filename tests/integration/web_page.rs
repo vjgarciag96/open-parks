@@ -1563,7 +1563,7 @@ async fn the_next_hours_card_sits_between_the_alerts_and_the_parks_hours() {
         (
             "/",
             concat!(
-                r#"</span></p></section><section class="next-hours"><h2>Próximas horas</h2>"#,
+                r#"</span></p></section><section class="next-hours"><h2>Previsión durante el horario habitual</h2>"#,
                 r#"<p class="unavailable">La previsión no está disponible.</p></section>"#,
                 r#"<section class="schedule">"#,
             ),
@@ -1571,7 +1571,7 @@ async fn the_next_hours_card_sits_between_the_alerts_and_the_parks_hours() {
         (
             "/en",
             concat!(
-                r#"</span></p></section><section class="next-hours"><h2>Next hours</h2>"#,
+                r#"</span></p></section><section class="next-hours"><h2>Forecast during usual opening hours</h2>"#,
                 r#"<p class="unavailable">The forecast isn’t available.</p></section>"#,
                 r#"<section class="schedule">"#,
             ),
@@ -2496,11 +2496,11 @@ async fn the_night_shows_as_one_closed_block_before_the_next_days_first_hour_in_
     let cases = [
         (
             "/",
-            r#"<li class="closed">Cerrado 22–6</li><li class=""><span class="day">mar</span><span class="hour">6:00</span>"#,
+            r#"<li class="closed"><span>Cerrado por horario</span><span>22–6</span></li><li class=""><span class="day">mar</span><span class="hour">6:00</span>"#,
         ),
         (
             "/en",
-            r#"<li class="closed">Closed 22–6</li><li class=""><span class="day">Tue</span><span class="hour">6:00</span>"#,
+            r#"<li class="closed"><span>Closed for the night</span><span>22–6</span></li><li class=""><span class="day">Tue</span><span class="hour">6:00</span>"#,
         ),
     ];
     for (uri, expected) in cases {
@@ -2509,6 +2509,98 @@ async fn the_night_shows_as_one_closed_block_before_the_next_days_first_hour_in_
 
         assert!(body.contains(expected), "{uri}: {body}");
     }
+}
+
+/// The forecast fixture's hours, moved to the live closure's day, 11/11/2026.
+fn forecast_on_the_live_closures_day() -> open_meteo::Latest {
+    forecast_moved_by(9)
+}
+
+/// The forecast fixture's hours, from 02/11/2026, moved `days` on.
+fn forecast_moved_by(days: i64) -> open_meteo::Latest {
+    let mut latest = forecast("rain_chances.json");
+    for hour in &mut latest.as_mut().unwrap().forecast.hours {
+        hour.at = hour.at.checked_add(jiff::ToSpan::days(days)).unwrap();
+    }
+    latest
+}
+
+#[tokio::test]
+async fn an_alert_closures_window_is_noted_above_the_forecast() {
+    let cases = [
+        (
+            BEFORE_THE_ALERT,
+            "/",
+            r#"<h2>Previsión durante el horario habitual</h2><p class="alert-closure">Cierre por alerta de 12:00 a medianoche</p><div class="forecast">"#,
+        ),
+        (
+            "2026-11-11T14:00:00Z",
+            "/",
+            r#"<h2>Previsión durante el horario habitual</h2><p class="alert-closure">Cierre por alerta de 12:00 a medianoche</p><div class="forecast">"#,
+        ),
+        (
+            BEFORE_THE_ALERT,
+            "/en",
+            r#"<h2>Forecast during usual opening hours</h2><p class="alert-closure">Alert closure from 12:00 to midnight</p><div class="forecast">"#,
+        ),
+    ];
+    for (now, uri, expected) in cases {
+        let body = text_body(
+            get_with_forecast(
+                fetched("code_6_live_closure.json"),
+                forecast_on_the_live_closures_day(),
+                now,
+                uri,
+            )
+            .await,
+        )
+        .await;
+
+        assert!(body.contains(expected), "{now} {uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_on_a_later_day_has_no_note_above_the_forecast() {
+    // 11:30 and 18:00 in Madrid the day before the live capture's window.
+    for now in ["2026-11-10T10:30:00Z", "2026-11-10T17:00:00Z"] {
+        let body = text_body(
+            get_with_forecast(
+                fetched("code_6_live_closure.json"),
+                forecast_moved_by(8),
+                now,
+                "/",
+            )
+            .await,
+        )
+        .await;
+
+        assert!(
+            body.contains(
+                r#"<h2>Previsión durante el horario habitual</h2><div class="forecast">"#
+            ),
+            "at {now}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_without_a_readable_window_has_no_note_above_the_forecast() {
+    let body = text_body(
+        get_with_forecast(
+            fetched("code_5_live_forecast_without_hours.json"),
+            forecast_on_the_live_closures_day(),
+            BEFORE_THE_ALERT,
+            "/",
+        )
+        .await,
+    )
+    .await;
+
+    assert!(
+        body.contains(r#"<h2>Previsión durante el horario habitual</h2><div class="forecast">"#),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -2540,7 +2632,7 @@ async fn the_summer_night_shows_as_a_block_from_midnight() {
 
     assert!(
         body.contains(
-            r#"<li class="closed">Closed 0–6</li><li class=""><span class="day">Sat</span>"#
+            r#"<li class="closed"><span>Closed for the night</span><span>0–6</span></li><li class=""><span class="day">Sat</span>"#
         ),
         "{body}"
     );

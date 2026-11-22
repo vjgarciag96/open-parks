@@ -47,8 +47,8 @@ pub(crate) struct Strings {
     pub(crate) next_hours: &'static str,
     pub(crate) hour_now: &'static str,
     pub(crate) today: &'static str,
-    /// The hours the park closes and opens at, 0 for midnight.
-    pub(crate) closed_block: fn(i8, i8) -> String,
+    /// Above the forecast, which shows the usual hours.
+    pub(crate) alert_closure_note: fn(ClockTime, ClockTime) -> String,
     /// Short names, Monday first.
     pub(crate) weekdays: [&'static str; 7],
     /// The accessible name of the columns that scroll sideways.
@@ -315,10 +315,16 @@ const ES: Strings = Strings {
         Verdict::Unknown => "Estado desconocido",
     },
     alerts_unchecked: "No hemos podido consultar si hay alertas",
-    next_hours: "Próximas horas",
+    next_hours: "Previsión durante el horario habitual",
     hour_now: "Ahora",
     today: "Hoy",
-    closed_block: |closes, opens| format!("Cerrado {closes}–{opens}"),
+    alert_closure_note: |from, to| {
+        format!(
+            "Cierre por alerta de {} a {}",
+            es_clock_time(from, ""),
+            es_clock_time(to, "")
+        )
+    },
     weekdays: ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
     hourly_forecast: "Previsión por horas",
     forecast_legend: "Probabilidad de lluvia. Rachas en km/h",
@@ -437,10 +443,16 @@ const EN: Strings = Strings {
         Verdict::Unknown => "Status unknown",
     },
     alerts_unchecked: "We couldn’t check for weather alerts",
-    next_hours: "Next hours",
+    next_hours: "Forecast during usual opening hours",
     hour_now: "Now",
     today: "Today",
-    closed_block: |closes, opens| format!("Closed {closes}–{opens}"),
+    alert_closure_note: |from, to| {
+        format!(
+            "Alert closure from {} to {}",
+            en_clock_time(from),
+            en_clock_time(to)
+        )
+    },
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     hourly_forecast: "Hourly forecast",
     forecast_legend: "Rain chance. Gusts in km/h",
