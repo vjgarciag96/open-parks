@@ -174,7 +174,9 @@ section {
 
 h1 + section,
 .closure + section,
-.now + section {
+.now + section,
+.checked + section,
+.stale + section {
   margin-top: 2.25rem;
 }
 
@@ -221,6 +223,26 @@ section h2 {
 
 .neutral .icon {
   background: var(--neutral);
+}
+
+.last-known {
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+.checked {
+  margin-top: 0.6rem;
+  font-size: 0.95rem;
+  color: var(--faint);
+}
+
+main > .stale {
+  margin-top: 0.3rem;
+  font-size: 0.95rem;
 }
 
 /* Under the alert line it explains. */
@@ -494,10 +516,6 @@ table {
   white-space: nowrap;
 }
 
-.updated.stale {
-  padding-bottom: 0.2rem;
-}
-
 .updated.stale .dot {
   background: var(--danger);
   box-shadow: 0 0 0 3px var(--danger-halo);
@@ -509,9 +527,6 @@ table {
   color: var(--danger);
 }
 
-.updated + .stale {
-  padding: 0 0 1rem 0.95rem;
-}
 
 .telegram {
   margin-top: 2rem;

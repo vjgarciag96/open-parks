@@ -76,6 +76,14 @@ pub(crate) struct Strings {
     pub(crate) updated_at: fn(Date, Time) -> String,
     pub(crate) ago: fn(Age) -> String,
     pub(crate) stale: &'static str,
+    /// Where to check instead, after `stale`.
+    pub(crate) stale_link: &'static str,
+    /// Above an answer that may be out of date.
+    pub(crate) last_known: &'static str,
+    /// When the status was last fetched, in Madrid time.
+    pub(crate) checked_at: fn(Time) -> String,
+    /// As `checked_at`, on an earlier day.
+    pub(crate) checked_on: fn(Date, Time) -> String,
     pub(crate) telegram: &'static str,
     pub(crate) source_lead: &'static str,
     pub(crate) source_link: &'static str,
@@ -183,9 +191,17 @@ const EN_SHORT_MONTHS: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+fn en_short_month(month: i8) -> &'static str {
+    EN_SHORT_MONTHS[usize::try_from(month - 1).expect("months start at 1")]
+}
+
 fn en_date(date: Date) -> String {
-    let month = EN_SHORT_MONTHS[usize::try_from(date.month() - 1).expect("months start at 1")];
-    format!("{} {month} {}", date.day(), date.year())
+    format!(
+        "{} {} {}",
+        date.day(),
+        en_short_month(date.month()),
+        date.year()
+    )
 }
 
 /// `time` as `HH:MM` after `lead`, or the language's word for the midnight
@@ -353,6 +369,17 @@ const ES: Strings = Strings {
         Age::Days(days) => format!("hace {days} días"),
     },
     stale: "Puede que este estado no esté al día.",
+    stale_link: "Consulta la web del Ayuntamiento",
+    last_known: "Último estado conocido",
+    checked_at: |time| format!("Última comprobación a las {}", hours_and_minutes(time)),
+    checked_on: |date, time| {
+        format!(
+            "Última comprobación el {} de {} a las {}",
+            date.day(),
+            ES.month(date.month()).to_lowercase(),
+            hours_and_minutes(time)
+        )
+    },
     telegram: "Recibe avisos en Telegram",
     source_lead: "Elaborado a partir de ",
     source_link: "datos del Ayuntamiento de Madrid",
@@ -467,6 +494,17 @@ const EN: Strings = Strings {
         Age::Days(days) => format!("{days} days ago"),
     },
     stale: "This status may be out of date.",
+    stale_link: "Check the City Council’s page",
+    last_known: "Last known status",
+    checked_at: |time| format!("Last checked at {}", hours_and_minutes(time)),
+    checked_on: |date, time| {
+        format!(
+            "Last checked on {} {} at {}",
+            date.day(),
+            en_short_month(date.month()),
+            hours_and_minutes(time)
+        )
+    },
     telegram: "Get notified on Telegram",
     source_lead: "Based on ",
     source_link: "data from Madrid City Council (Ayuntamiento de Madrid)",
