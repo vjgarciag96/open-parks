@@ -7,7 +7,7 @@ use super::Lang;
 use crate::park::headline::{Alerts, Answer, ScheduleLine};
 use crate::park::incident::{ClockTime, IncidentDates, IncidentHours};
 use crate::park::schedule::Season;
-use crate::park::status::{ParkStatus, ReopeningForecast, Verdict};
+use crate::park::status::{ClosureEnd, ParkStatus, ReopeningForecast, Verdict};
 
 impl Lang {
     pub(crate) fn strings(self) -> &'static Strings {
@@ -29,6 +29,16 @@ pub(crate) struct Strings {
     pub(crate) open_closure_expected: &'static str,
     pub(crate) closed: &'static str,
     pub(crate) closed_by_schedule: &'static str,
+    /// Under the answer while a weather alert has the park closed.
+    pub(crate) closure_cause: &'static str,
+    /// When an alert's closure ends, while the park would be open.
+    pub(crate) until: fn(ClockTime) -> String,
+    /// When an alert's closure ends after the park's closing time.
+    pub(crate) rest_of_the_day: &'static str,
+    /// When an alert's closure ends, when SIGMA gives no hours.
+    pub(crate) reopens: fn(ReopeningForecast) -> Option<&'static str>,
+    pub(crate) closure_expected_between: fn(ClockTime, ClockTime) -> String,
+    pub(crate) no_closure_hours: &'static str,
     pub(crate) opens_at: fn(Time) -> String,
     pub(crate) closes_at: fn(Time) -> String,
     pub(crate) alerts: &'static str,
@@ -106,12 +116,23 @@ impl Strings {
     pub(crate) fn answer(&self, answer: Answer) -> &'static str {
         match answer {
             Answer::Open => self.open,
+            Answer::OpenWithRestrictions => (self.headline)(Verdict::OpenWithRestrictions),
+            Answer::OpenStayNotAdvised => (self.headline)(Verdict::OpenStayNotAdvised),
             Answer::OpenClosureExpected => self.open_closure_expected,
             Answer::Unknown => (self.headline)(Verdict::Unknown),
             Answer::Unchecked => self.upstream_failure,
             Answer::Closed => self.closed,
             Answer::ClosedByAlert => (self.headline)(Verdict::Closed),
             Answer::ClosedBySchedule => self.closed_by_schedule,
+        }
+    }
+
+    /// Nothing for a forecast it has no words for.
+    pub(crate) fn closure_end(&self, end: ClosureEnd) -> Option<String> {
+        match end {
+            ClosureEnd::At(time) => Some((self.until)(time)),
+            ClosureEnd::RestOfTheDay => Some(self.rest_of_the_day.to_owned()),
+            ClosureEnd::Reopening(forecast) => (self.reopens)(forecast).map(str::to_owned),
         }
     }
 
@@ -167,11 +188,22 @@ fn en_date(date: Date) -> String {
     format!("{} {month} {}", date.day(), date.year())
 }
 
-fn en_clock_time(time: ClockTime) -> String {
+/// `time` as `HH:MM` after `lead`, or the language's word for the midnight
+/// that ends the day, which takes no lead.
+fn clock_time(time: ClockTime, lead: &str, midnight: &str) -> String {
     match time.is_midnight_end() {
-        true => "midnight".to_owned(),
-        false => format!("{:02}:{:02}", time.hour(), time.minute()),
+        true => midnight.to_owned(),
+        false => format!("{lead}{:02}:{:02}", time.hour(), time.minute()),
     }
+}
+
+/// `lead` is the article an hour takes where midnight takes none.
+fn es_clock_time(time: ClockTime, lead: &str) -> String {
+    clock_time(time, lead, "medianoche")
+}
+
+fn en_clock_time(time: ClockTime) -> String {
+    clock_time(time, "", "midnight")
 }
 
 fn en_dates(text: &str) -> Cow<'_, str> {
@@ -236,6 +268,22 @@ const ES: Strings = Strings {
     open_closure_expected: "Abierto, cierre previsto por alerta",
     closed: "Cerrado",
     closed_by_schedule: "Cerrado por horario",
+    closure_cause: "Por alerta meteorológica",
+    until: |time| format!("Hasta {}", es_clock_time(time, "las ")),
+    rest_of_the_day: "Durante el resto del día",
+    reopens: |forecast| match forecast {
+        ReopeningForecast::AfterInspections => Some("Reabrirá cuando terminen las inspecciones"),
+        ReopeningForecast::SeeNotes => Some("Reapertura: consulta las observaciones"),
+        ReopeningForecast::Unknown(_) => None,
+    },
+    closure_expected_between: |from, to| {
+        format!(
+            "Cierre previsto de {} a {}",
+            es_clock_time(from, ""),
+            es_clock_time(to, "")
+        )
+    },
+    no_closure_hours: "El Ayuntamiento no ha indicado el horario del cierre.",
     opens_at: |time| format!("Abre a las {}", hours_and_minutes(time)),
     closes_at: |time| match time {
         Time::MIN => "Cierra a medianoche".to_owned(),
@@ -331,6 +379,22 @@ const EN: Strings = Strings {
     open_closure_expected: "Open, closure expected due to an alert",
     closed: "Closed",
     closed_by_schedule: "Closed for the night",
+    closure_cause: "Due to a weather alert",
+    until: |time| format!("Until {}", en_clock_time(time)),
+    rest_of_the_day: "For the rest of the day",
+    reopens: |forecast| match forecast {
+        ReopeningForecast::AfterInspections => Some("Reopens once inspections finish"),
+        ReopeningForecast::SeeNotes => Some("Reopening: see the notes"),
+        ReopeningForecast::Unknown(_) => None,
+    },
+    closure_expected_between: |from, to| {
+        format!(
+            "Closure expected from {} to {}",
+            en_clock_time(from),
+            en_clock_time(to)
+        )
+    },
+    no_closure_hours: "The City Council hasn’t given the closure hours.",
     opens_at: |time| format!("Opens at {}", hours_and_minutes(time)),
     closes_at: |time| match time {
         Time::MIN => "Closes at midnight".to_owned(),

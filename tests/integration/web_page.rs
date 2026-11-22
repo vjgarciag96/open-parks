@@ -8,7 +8,7 @@ use http_body_util::BodyExt;
 use jiff::Timestamp;
 use jiff::civil::date;
 use open_parks::park::forecast::{Forecast, HourForecast};
-use open_parks::park::status::{AlertCode, ParkStatus};
+use open_parks::park::status::{AlertCode, ParkStatus, ReopeningForecast};
 use open_parks::sigma::{Fetched, Latest};
 use open_parks::web::page;
 use open_parks::web::public_url::PublicUrl;
@@ -140,6 +140,8 @@ const WITHIN_SUMMER_HOURS: &str = "2026-07-11T09:30:00Z";
 
 struct Headline {
     answer: &'static str,
+    /// The lines under the answer on an alert's closure, in order.
+    closure: &'static [&'static str],
     alert: &'static str,
     schedule: Option<&'static str>,
 }
@@ -152,9 +154,19 @@ fn alerts_box(heading: &str, alert: &str) -> [String; 2] {
 }
 
 fn schedule_line(schedule: Option<&str>) -> String {
+    under_the_answer(&[], schedule)
+}
+
+fn under_the_answer(closure: &[&str], schedule: Option<&str>) -> String {
+    let closure: String = closure
+        .iter()
+        .map(|line| format!(r#"<p class="closure">{line}</p>"#))
+        .collect();
     match schedule {
-        Some(schedule) => format!(r#"</h1><p class="now">{schedule}</p><section class="alerts">"#),
-        None => r#"</h1><section class="alerts">"#.to_owned(),
+        Some(schedule) => {
+            format!(r#"</h1>{closure}<p class="now">{schedule}</p><section class="alerts">"#)
+        }
+        None => format!(r#"</h1>{closure}<section class="alerts">"#),
     }
 }
 
@@ -166,7 +178,7 @@ fn assert_headline(body: &str, question: &str, (alerts, hours): (&str, &str), ex
     let [alerts_heading, alert] = alerts_box(alerts, expected.alert);
     for part in [
         h1(question, expected.answer),
-        schedule_line(expected.schedule),
+        under_the_answer(expected.closure, expected.schedule),
         alerts_heading,
         alert,
         schedule_box(hours),
@@ -199,19 +211,19 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
         ),
         (
             "code_2_incidents.json",
-            "Abierto",
+            "Abierto con restricciones",
             "Con restricciones",
             Some("Cierra a las 22:00"),
         ),
         (
             "code_3_yellow_alert.json",
-            "Abierto",
+            "Abierto con restricciones",
             "Con restricciones",
             Some("Cierra a las 22:00"),
         ),
         (
             "code_4_orange_alert.json",
-            "Abierto",
+            "Abierto, pero no se recomienda permanecer",
             "No se recomienda permanecer",
             Some("Cierra a las 22:00"),
         ),
@@ -228,12 +240,6 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
             None,
         ),
         (
-            "code_7_closed.json",
-            "Cerrado",
-            "Cerrado por alerta meteorológica",
-            None,
-        ),
-        (
             "unknown_codes.json",
             "Estado desconocido",
             "Estado desconocido",
@@ -246,6 +252,7 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
         assert_spanish_headline(
             &body,
             &Headline {
+                closure: &[],
                 answer,
                 alert,
                 schedule,
@@ -276,11 +283,6 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
             "Cierre previsto",
             Some("Cerrado por horario"),
         ),
-        (
-            "code_7_closed.json",
-            "Cerrado por alerta meteorológica",
-            None,
-        ),
         ("unknown_codes.json", "Estado desconocido", reopens),
     ];
     for (name, alert, schedule) in cases {
@@ -289,6 +291,7 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
         assert_spanish_headline(
             &body,
             &Headline {
+                closure: &[],
                 answer: "Cerrado",
                 alert,
                 schedule,
@@ -349,6 +352,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
         assert_spanish_headline(
             &body,
             &Headline {
+                closure: &[],
                 answer,
                 alert: "No hemos podido consultar si hay alertas",
                 schedule,
@@ -434,30 +438,35 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
             "/",
             BEFORE_THE_ALERT,
             "Abierto, cierre previsto por alerta",
+            &["Cierre previsto de 12:00 a medianoche"][..],
             "Cierre previsto",
         ),
         (
             "/",
             DURING_THE_ALERT,
             "Cerrado",
+            &["Por alerta meteorológica", "Durante el resto del día"],
             "Cerrado por alerta meteorológica",
         ),
         (
             "/en",
             BEFORE_THE_ALERT,
             "Open, closure expected due to an alert",
+            &["Closure expected from 12:00 to midnight"],
             "Closure expected",
         ),
         (
             "/en",
             DURING_THE_ALERT,
             "Closed",
+            &["Due to a weather alert", "For the rest of the day"],
             "Closed due to a weather alert",
         ),
     ];
-    for (uri, now, answer, alert) in cases {
+    for (uri, now, answer, closure, alert) in cases {
         let body = body_at("code_6_live_closure.json", now, uri).await;
         let expected = Headline {
+            closure,
             answer,
             alert,
             schedule: None,
@@ -472,6 +481,320 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
 }
 
 #[tokio::test]
+async fn an_alert_closure_says_its_cause_and_when_it_reopens_under_the_answer() {
+    let cases = [
+        (
+            WITHIN_HOURS,
+            "/",
+            Headline {
+                answer: "Cerrado",
+                closure: &[
+                    "Por alerta meteorológica",
+                    "Reapertura: consulta las observaciones",
+                ],
+                alert: "Cerrado por alerta meteorológica",
+                schedule: None,
+            },
+        ),
+        (
+            OUTSIDE_HOURS,
+            "/",
+            Headline {
+                answer: "Cerrado",
+                closure: &[
+                    "Por alerta meteorológica",
+                    "Reapertura: consulta las observaciones",
+                ],
+                alert: "Cerrado por alerta meteorológica",
+                schedule: None,
+            },
+        ),
+        (
+            WITHIN_HOURS,
+            "/en",
+            Headline {
+                answer: "Closed",
+                closure: &["Due to a weather alert", "Reopening: see the notes"],
+                alert: "Closed due to a weather alert",
+                schedule: None,
+            },
+        ),
+        (
+            OUTSIDE_HOURS,
+            "/en",
+            Headline {
+                answer: "Closed",
+                closure: &["Due to a weather alert", "Reopening: see the notes"],
+                alert: "Closed due to a weather alert",
+                schedule: None,
+            },
+        ),
+    ];
+    for (now, uri, expected) in cases {
+        let body = body_at("code_7_closed.json", now, uri).await;
+
+        if uri == "/" {
+            assert_spanish_headline(&body, &expected);
+        } else {
+            assert_english_headline(&body, &expected);
+        }
+    }
+}
+
+fn closed_by_alert(reopening: Option<ReopeningForecast>) -> Latest {
+    Ok(Fetched {
+        status: ParkStatus {
+            code: AlertCode::Closed,
+            dates: Some("13/10/2026".to_owned()),
+            hours: None,
+            reopening,
+            notes: None,
+        },
+        fetched_at: FETCHED_AT.parse().unwrap(),
+    })
+}
+
+#[tokio::test]
+async fn an_alert_closure_after_inspections_says_it_reopens_once_they_finish() {
+    let cases = [
+        (
+            "/",
+            r#"</h1><p class="closure">Por alerta meteorológica</p><p class="closure">Reabrirá cuando terminen las inspecciones</p><section class="alerts">"#,
+        ),
+        (
+            "/en",
+            r#"</h1><p class="closure">Due to a weather alert</p><p class="closure">Reopens once inspections finish</p><section class="alerts">"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let latest = closed_by_alert(Some(ReopeningForecast::AfterInspections));
+
+        let body = text_body(get(latest, uri).await).await;
+
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_with_no_known_reopening_gives_only_its_cause() {
+    for reopening in [None, Some(ReopeningForecast::Unknown(9))] {
+        let latest = closed_by_alert(reopening);
+
+        let body = text_body(get(latest, "/").await).await;
+
+        assert!(
+            body.contains(
+                r#"</h1><p class="closure">Por alerta meteorológica</p><section class="alerts">"#
+            ),
+            "{reopening:?}: {body}"
+        );
+    }
+}
+
+fn alert(
+    code: AlertCode,
+    dates: &str,
+    hours: &str,
+    reopening: Option<ReopeningForecast>,
+) -> Latest {
+    Ok(Fetched {
+        status: ParkStatus {
+            code,
+            dates: Some(dates.to_owned()),
+            hours: Some(hours.to_owned()),
+            reopening,
+            notes: None,
+        },
+        fetched_at: FETCHED_AT.parse().unwrap(),
+    })
+}
+
+/// The lines right under the answer on an alert's closure, in order.
+fn closure_lines(body: &str) -> Vec<&str> {
+    let (_, mut rest) = body.split_once("</h1>").unwrap();
+    let mut lines = Vec::new();
+    while let Some(line) = rest.strip_prefix(r#"<p class="closure">"#) {
+        let (line, after) = line.split_once("</p>").unwrap();
+        lines.push(line);
+        rest = after;
+    }
+    lines
+}
+
+#[tokio::test]
+async fn an_expected_closure_on_a_later_day_gives_no_closure_line() {
+    // 11:30 and 18:00 in Madrid the day before the live capture's window.
+    for now in ["2026-11-10T10:30:00Z", "2026-11-10T17:00:00Z"] {
+        let body = body_at("code_6_live_closure.json", now, "/").await;
+
+        assert_eq!(closure_lines(&body), Vec::<&str>::new(), "at {now}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_ending_before_closing_time_says_until_when() {
+    let cases = [
+        ("/", ["Por alerta meteorológica", "Hasta las 18:00"]),
+        ("/en", ["Due to a weather alert", "Until 18:00"]),
+    ];
+    for (uri, expected) in cases {
+        let latest = alert(
+            AlertCode::RedAlertRestrictions,
+            "11/11/2026",
+            "12:00-18:00",
+            None,
+        );
+
+        let body =
+            text_body(get_at(latest, "2026-11-11T14:00:00Z".parse().unwrap(), uri).await).await;
+
+        assert_eq!(closure_lines(&body), expected, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_past_closing_time_says_it_lasts_the_rest_of_the_day() {
+    // 15:00 and 22:30 in Madrid, the park closing at 22:00.
+    let cases = [
+        (
+            "/",
+            "2026-11-11T14:00:00Z",
+            ["Por alerta meteorológica", "Durante el resto del día"],
+        ),
+        (
+            "/",
+            "2026-11-11T21:30:00Z",
+            ["Por alerta meteorológica", "Durante el resto del día"],
+        ),
+        (
+            "/en",
+            "2026-11-11T14:00:00Z",
+            ["Due to a weather alert", "For the rest of the day"],
+        ),
+    ];
+    for (uri, now, expected) in cases {
+        let body = body_at("code_6_live_closure.json", now, uri).await;
+
+        assert_eq!(closure_lines(&body), expected, "{uri} at {now}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_ending_as_the_park_closes_at_midnight_says_until_midnight() {
+    let cases = [
+        ("/", ["Por alerta meteorológica", "Hasta medianoche"]),
+        ("/en", ["Due to a weather alert", "Until midnight"]),
+    ];
+    for (uri, expected) in cases {
+        let latest = alert(
+            AlertCode::RedAlertRestrictions,
+            "11/07/2026",
+            "12:00-24:00",
+            None,
+        );
+
+        let body =
+            text_body(get_at(latest, "2026-07-11T13:00:00Z".parse().unwrap(), uri).await).await;
+
+        assert_eq!(closure_lines(&body), expected, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn an_alert_closure_with_hours_says_when_it_ends_rather_than_its_reopening_forecast() {
+    let latest = alert(
+        AlertCode::RedAlertClosure,
+        "11/11/2026",
+        "12:00-18:00",
+        Some(ReopeningForecast::AfterInspections),
+    );
+
+    let body = text_body(get_at(latest, "2026-11-11T14:00:00Z".parse().unwrap(), "/").await).await;
+
+    assert_eq!(
+        closure_lines(&body),
+        ["Por alerta meteorológica", "Hasta las 18:00"]
+    );
+}
+
+#[tokio::test]
+async fn an_alert_closure_whose_window_has_not_begun_says_when_it_reopens() {
+    let latest = alert(
+        AlertCode::Closed,
+        "11/11/2026",
+        "18:00-24:00",
+        Some(ReopeningForecast::AfterInspections),
+    );
+
+    let body = text_body(get_at(latest, BEFORE_THE_ALERT.parse().unwrap(), "/").await).await;
+
+    assert_eq!(
+        closure_lines(&body),
+        [
+            "Por alerta meteorológica",
+            "Reabrirá cuando terminen las inspecciones"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn an_ended_window_gives_no_closure_line_nor_says_the_hours_are_missing() {
+    let latest = alert(
+        AlertCode::RedAlertRestrictions,
+        "11/11/2026",
+        "03:00 a 12:00",
+        None,
+    );
+
+    let body = text_body(get_at(latest, "2026-11-11T14:00:00Z".parse().unwrap(), "/").await).await;
+
+    assert_eq!(closure_lines(&body), Vec::<&str>::new());
+    assert!(!body.contains("no ha indicado el horario"), "{body}");
+}
+
+#[tokio::test]
+async fn at_night_an_expected_closure_gives_no_closure_line() {
+    // 05:00 in Madrid on the live capture's day, before the park opens.
+    let body = body_at("code_6_live_closure.json", "2026-11-11T04:00:00Z", "/").await;
+
+    assert!(
+        body.contains(&schedule_line(Some("Cerrado por horario"))),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn an_expected_closure_without_hours_says_the_city_council_has_not_given_them() {
+    let cases = [
+        (
+            "/",
+            r#"</span>Cierre previsto</p><p class="no-closure-hours">El Ayuntamiento no ha indicado el horario del cierre.</p>"#,
+        ),
+        (
+            "/en",
+            r#"</span>Closure expected</p><p class="no-closure-hours">The City Council hasn’t given the closure hours.</p>"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let body = body_at(
+            "code_5_live_forecast_without_hours.json",
+            "2026-11-18T10:30:00Z",
+            uri,
+        )
+        .await;
+
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn an_expected_closure_with_unreadable_hours_does_not_say_they_are_missing() {
+    let body = body_at("code_6_red_alert_restrictions.json", WITHIN_HOURS, "/").await;
+
+    assert!(!body.contains("no ha indicado el horario"), "{body}");
+}
+
+#[tokio::test]
 async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open() {
     let cases = [
         (
@@ -482,19 +805,19 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
         ),
         (
             "code_2_incidents.json",
-            "Open",
+            "Open with restrictions",
             "Restrictions in place",
             Some("Closes at 22:00"),
         ),
         (
             "code_3_yellow_alert.json",
-            "Open",
+            "Open with restrictions",
             "Restrictions in place",
             Some("Closes at 22:00"),
         ),
         (
             "code_4_orange_alert.json",
-            "Open",
+            "Open, but staying is not advised",
             "Staying is not advised",
             Some("Closes at 22:00"),
         ),
@@ -508,12 +831,6 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
             "code_6_red_alert_restrictions.json",
             "Open, closure expected due to an alert",
             "Closure expected",
-            None,
-        ),
-        (
-            "code_7_closed.json",
-            "Closed",
-            "Closed due to a weather alert",
             None,
         ),
         (
@@ -535,6 +852,7 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
         assert_english_headline(
             &body,
             &Headline {
+                closure: &[],
                 answer,
                 alert,
                 schedule,
@@ -565,7 +883,6 @@ async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
             "Closure expected",
             Some("Closed for the night"),
         ),
-        ("code_7_closed.json", "Closed due to a weather alert", None),
         ("unknown_codes.json", "Status unknown", reopens),
     ];
     for (name, alert, schedule) in cases {
@@ -574,6 +891,7 @@ async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
         assert_english_headline(
             &body,
             &Headline {
+                closure: &[],
                 answer: "Closed",
                 alert,
                 schedule,
@@ -595,6 +913,7 @@ async fn a_failing_upstream_outside_hours_is_explained_in_english() {
     assert_english_headline(
         &body,
         &Headline {
+            closure: &[],
             answer: "Closed",
             alert: "We couldn’t check for weather alerts",
             schedule: Some("Closed for the night. Opens at 06:00"),
@@ -1205,6 +1524,11 @@ async fn the_link_preview_names_the_cause_of_a_closure() {
             "code_1_open.json",
             WITHIN_HOURS,
             "¿Está abierto el Retiro? Abierto",
+        ),
+        (
+            "code_3_yellow_alert.json",
+            WITHIN_HOURS,
+            "¿Está abierto el Retiro? Abierto con restricciones",
         ),
         (
             "code_1_open.json",

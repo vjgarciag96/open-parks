@@ -8,7 +8,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
-use jiff::{SignedDuration, Timestamp};
+use jiff::{SignedDuration, Timestamp, ToSpan};
 use open_parks::open_meteo;
 use open_parks::park::forecast::Weather;
 use open_parks::sigma::{self, FetchError};
@@ -32,6 +32,12 @@ const DAY: &str = "2026-11-02T09:30:00Z";
 const EVENING: &str = "2026-11-02T19:30:00Z";
 const NIGHT: &str = "2026-11-02T21:30:00Z";
 const OLD_FORECAST: &str = "2026-11-02T04:30:00Z";
+/// The live closure's day, 11/11/2026, and how far the forecast fixture's
+/// two days are moved to cover it.
+const LIVE_CLOSURE: &str = "code_6_live_closure";
+const BEFORE_THE_LIVE_CLOSURE: &str = "2026-11-11T09:30:00Z";
+const INSIDE_THE_LIVE_CLOSURE: &str = "2026-11-11T14:00:00Z";
+const LIVE_CLOSURE_DAYS_AFTER_THE_FORECAST: i64 = 9;
 
 struct Preview {
     name: String,
@@ -123,6 +129,17 @@ fn previews() -> std::io::Result<Vec<Preview>> {
         };
         previews.push(fetched("", DAY, 0, None));
         previews.push(fetched(".night", NIGHT, 0, None));
+        if name == LIVE_CLOSURE {
+            for (variant, at) in [
+                (".before_window", BEFORE_THE_LIVE_CLOSURE),
+                (".inside_window", INSIDE_THE_LIVE_CLOSURE),
+            ] {
+                previews.push(Preview {
+                    forecast: forecast_moved_to(at, LIVE_CLOSURE_DAYS_AFTER_THE_FORECAST),
+                    ..fetched(variant, at, 0, None)
+                });
+            }
+        }
         if name == DETAILED {
             previews.push(fetched(".evening", EVENING, 0, None));
             previews.push(fetched(".5_minutes_old", DAY, 5, None));
@@ -180,6 +197,16 @@ fn forecast_fetched_at(at: &str) -> open_meteo::Latest {
         forecast: open_meteo::decode(FORECAST).unwrap(),
         fetched_at: at.parse().unwrap(),
     })
+}
+
+/// The forecast with its hours moved `days` later, for a day the fixture
+/// doesn't cover.
+fn forecast_moved_to(at: &str, days: i64) -> open_meteo::Latest {
+    let mut latest = forecast_fetched_at(at);
+    for hour in &mut latest.as_mut().unwrap().forecast.hours {
+        hour.at = hour.at.checked_add(days.days()).unwrap();
+    }
+    latest
 }
 
 /// The forecast with one value left out in each hour from 11:00 to 16:00,
