@@ -295,6 +295,7 @@ main > .stale {
 }
 
 .hours li {
+  position: relative;
   flex: none;
   scroll-snap-align: start;
   box-sizing: border-box;
@@ -302,6 +303,17 @@ main > .stale {
   padding: 0.5rem 0;
   border-radius: 12px;
   text-align: center;
+}
+
+/* For screen readers only, in place of the column's values. */
+.forecast .reading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .hours .current {
@@ -331,10 +343,6 @@ main > .stale {
 /* Over the columns' own padding. */
 .forecast:has(.day) .keys {
   padding-top: calc(1.5em + 0.5rem);
-}
-
-.hours li:has(.day) {
-  position: relative;
 }
 
 .hours .day {

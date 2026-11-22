@@ -2406,19 +2406,19 @@ async fn the_card_shows_twelve_columns_with_the_forecasts_values_starting_with_n
     assert_eq!(hour_columns(&body), 12, "{body}");
     let first = concat!(
         r#"</div><ol class="hours" tabindex="0" aria-label="Hourly forecast">"#,
-        r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"><svg "#,
+        r#"<li class="current"><div aria-hidden="true"><span class="day">Today</span><span class="hour">Now</span><span class="icon"><svg "#,
     );
     let first_values = concat!(
         r#"</svg></span><span class="temperature">7°</span>"#,
-        r#"<span class="rain">70%</span><span class="gusts">17</span></li>"#,
+        r#"<span class="rain">70%</span><span class="gusts">17</span></div><span class="reading">"#,
     );
     let second_values = concat!(
         r#"</svg></span><span class="temperature">11°</span>"#,
-        r#"<span class="rain">77%</span><span class="gusts">24</span></li>"#,
+        r#"<span class="rain">77%</span><span class="gusts">24</span></div><span class="reading">"#,
     );
     let last_values = concat!(
         r#"</svg></span><span class="temperature">14°</span>"#,
-        r#"<span class="rain">46%</span><span class="gusts">6</span></li></ol>"#,
+        r#"<span class="rain">46%</span><span class="gusts">6</span></div><span class="reading">"#,
     );
     for expected in [first, first_values, second_values, last_values] {
         assert!(body.contains(expected), "{expected}: {body}");
@@ -2463,11 +2463,11 @@ async fn the_current_hour_shows_today_above_now_in_each_language() {
     let cases = [
         (
             "/",
-            r#"<li class="current"><span class="day">Hoy</span><span class="hour">Ahora</span>"#,
+            r#"<li class="current"><div aria-hidden="true"><span class="day">Hoy</span><span class="hour">Ahora</span>"#,
         ),
         (
             "/en",
-            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span>"#,
+            r#"<li class="current"><div aria-hidden="true"><span class="day">Today</span><span class="hour">Now</span>"#,
         ),
     ];
     for (uri, expected) in cases {
@@ -2485,7 +2485,7 @@ async fn before_opening_the_opening_hour_shows_today_in_madrid_time() {
 
     assert!(
         body.contains(
-            r#"aria-label="Hourly forecast"><li class=""><span class="day">Today</span><span class="hour">6:00</span>"#
+            r#"aria-label="Hourly forecast"><li class=""><div aria-hidden="true"><span class="day">Today</span><span class="hour">6:00</span>"#
         ),
         "{body}"
     );
@@ -2496,11 +2496,11 @@ async fn the_night_shows_as_one_closed_block_before_the_next_days_first_hour_in_
     let cases = [
         (
             "/",
-            r#"<li class="closed"><span>Cerrado por horario</span><span>22–6</span></li><li class=""><span class="day">mar</span><span class="hour">6:00</span>"#,
+            r#"<li class="closed"><span>Cerrado por horario</span><span>22–6</span></li><li class=""><div aria-hidden="true"><span class="day">mar</span><span class="hour">6:00</span>"#,
         ),
         (
             "/en",
-            r#"<li class="closed"><span>Closed for the night</span><span>22–6</span></li><li class=""><span class="day">Tue</span><span class="hour">6:00</span>"#,
+            r#"<li class="closed"><span>Closed for the night</span><span>22–6</span></li><li class=""><div aria-hidden="true"><span class="day">Tue</span><span class="hour">6:00</span>"#,
         ),
     ];
     for (uri, expected) in cases {
@@ -2632,7 +2632,7 @@ async fn the_summer_night_shows_as_a_block_from_midnight() {
 
     assert!(
         body.contains(
-            r#"<li class="closed"><span>Closed for the night</span><span>0–6</span></li><li class=""><span class="day">Sat</span>"#
+            r#"<li class="closed"><span>Closed for the night</span><span>0–6</span></li><li class=""><div aria-hidden="true"><span class="day">Sat</span>"#
         ),
         "{body}"
     );
@@ -2645,7 +2645,7 @@ async fn while_closed_the_card_starts_at_opening_time_with_no_now() {
 
     assert!(
         body.contains(concat!(
-            r#"aria-label="Hourly forecast"><li class="">"#,
+            r#"aria-label="Hourly forecast"><li class=""><div aria-hidden="true">"#,
             r#"<span class="day">Tue</span><span class="hour">6:00</span>"#,
         )),
         "{body}"
@@ -2705,7 +2705,7 @@ async fn a_missing_rain_chance_or_gust_shows_a_dash() {
         body.contains(concat!(
             r#"<span class="temperature">7°</span>"#,
             r#"<span class="rain">–</span>"#,
-            r#"<span class="gusts">–</span></li>"#,
+            r#"<span class="gusts">–</span></div><span class="reading">"#,
         )),
         "{body}"
     );
@@ -2725,7 +2725,7 @@ async fn an_unknown_weather_code_shows_a_dash_for_its_icon_and_keeps_the_values(
             r#"<span class="hour">Now</span><span class="icon">–</span>"#,
             r#"<span class="temperature">7°</span>"#,
             r#"<span class="rain">30%</span>"#,
-            r#"<span class="gusts">17</span></li>"#,
+            r#"<span class="gusts">17</span></div><span class="reading">"#,
         )),
         "{body}"
     );
@@ -2742,9 +2742,9 @@ async fn a_missing_temperature_blanks_the_column_but_keeps_its_hour() {
 
     assert!(
         body.contains(concat!(
-            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<li class="current"><div aria-hidden="true"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
             r#"<span class="temperature"></span><span class="rain"></span>"#,
-            r#"<span class="gusts"></span></li>"#,
+            r#"<span class="gusts"></span></div><span class="reading">Now</span></li>"#,
         )),
         "{body}"
     );
@@ -2761,12 +2761,190 @@ async fn a_missing_weather_code_blanks_the_column_but_keeps_its_hour() {
 
     assert!(
         body.contains(concat!(
-            r#"<li class="current"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
+            r#"<li class="current"><div aria-hidden="true"><span class="day">Today</span><span class="hour">Now</span><span class="icon"></span>"#,
             r#"<span class="temperature"></span><span class="rain"></span>"#,
-            r#"<span class="gusts"></span></li>"#,
+            r#"<span class="gusts"></span></div><span class="reading">Now</span></li>"#,
         )),
         "{body}"
     );
+}
+
+#[tokio::test]
+async fn each_hour_reads_its_values_as_one_sentence_in_each_language() {
+    let cases = [
+        (
+            "/",
+            "14:00, despejado, 18 grados, 4 % de probabilidad de lluvia, rachas de 16 km/h",
+        ),
+        (
+            "/en",
+            "14:00, clear sky, 18 degrees, 4% chance of rain, gusts of 16 km/h",
+        ),
+    ];
+    for (uri, reading) in cases {
+        let body = body_with_forecast(
+            forecast("rain_chances.json"),
+            "2026-11-02T09:30:00+01:00",
+            uri,
+        )
+        .await;
+
+        let expected = format!(r#"<span class="reading">{reading}</span></li>"#);
+        assert!(body.contains(&expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_visible_values_are_hidden_from_screen_readers_in_favour_of_the_reading() {
+    let body = body_with_forecast(
+        forecast_of(hour_at_nine()),
+        "2026-11-02T09:30:00+01:00",
+        "/en",
+    )
+    .await;
+
+    assert!(
+        body.contains(concat!(
+            r#"<li class="current"><div aria-hidden="true"><span class="day">Today</span>"#,
+            r#"<span class="hour">Now</span><span class="icon"><svg "#,
+        )),
+        "{body}"
+    );
+    assert!(
+        body.contains(concat!(
+            r#"<span class="gusts">17</span></div>"#,
+            r#"<span class="reading">Now, clear sky, 7 degrees, 30% chance of rain, gusts of 17 km/h</span></li>"#,
+        )),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn the_reading_names_the_day_of_a_column_that_shows_one() {
+    let cases = [
+        ("2026-11-02T05:30:00+01:00", "/", "hoy 6:00, "),
+        ("2026-11-02T05:30:00+01:00", "/en", "today 6:00, "),
+        ("2026-11-02T20:30:00+01:00", "/", "martes 6:00, "),
+        ("2026-11-02T20:30:00+01:00", "/en", "Tuesday 6:00, "),
+    ];
+    for (now, uri, when) in cases {
+        let body = body_with_forecast(forecast("retiro.json"), now, uri).await;
+
+        let expected = format!(r#"<span class="reading">{when}"#);
+        assert!(body.contains(&expected), "{now} {uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_reading_leaves_out_a_missing_rain_chance_and_gusts() {
+    let hour = HourForecast {
+        rain_chance: None,
+        gusts: None,
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/en").await;
+
+    assert!(
+        body.contains(r#"<span class="reading">Now, clear sky, 7 degrees</span>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_reading_leaves_out_the_name_of_an_unknown_weather_code() {
+    let hour = HourForecast {
+        weather_code: Some(4),
+        ..hour_at_nine()
+    };
+
+    let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", "/").await;
+
+    assert!(
+        body.contains(
+            r#"<span class="reading">Ahora, 7 grados, 30 % de probabilidad de lluvia, rachas de 17 km/h</span>"#
+        ),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_reading_of_one_degree_either_side_of_zero_is_singular() {
+    let cases = [
+        (1.2, "/", "Ahora, despejado, 1 grado, "),
+        (-0.6, "/", "Ahora, despejado, -1 grado, "),
+        (1.2, "/en", "Now, clear sky, 1 degree, "),
+        (-0.6, "/en", "Now, clear sky, -1 degree, "),
+    ];
+    for (temperature, uri, reading) in cases {
+        let hour = HourForecast {
+            temperature: Some(temperature),
+            ..hour_at_nine()
+        };
+
+        let body = body_with_forecast(forecast_of(hour), "2026-11-02T09:30:00+01:00", uri).await;
+
+        let expected = format!(r#"<span class="reading">{reading}"#);
+        assert!(body.contains(&expected), "{temperature} {uri}: {body}");
+    }
+}
+
+const WEATHER_NAMES: [(u8, &str, &str); 28] = [
+    (0, "despejado", "clear sky"),
+    (1, "mayormente despejado", "mainly clear"),
+    (2, "parcialmente nublado", "partly cloudy"),
+    (3, "cubierto", "overcast"),
+    (45, "niebla", "fog"),
+    (48, "niebla con escarcha", "rime fog"),
+    (51, "llovizna ligera", "light drizzle"),
+    (53, "llovizna moderada", "moderate drizzle"),
+    (55, "llovizna intensa", "dense drizzle"),
+    (56, "llovizna helada ligera", "light freezing drizzle"),
+    (57, "llovizna helada intensa", "dense freezing drizzle"),
+    (61, "lluvia ligera", "slight rain"),
+    (63, "lluvia moderada", "moderate rain"),
+    (65, "lluvia intensa", "heavy rain"),
+    (66, "lluvia helada ligera", "light freezing rain"),
+    (67, "lluvia helada intensa", "heavy freezing rain"),
+    (71, "nevada ligera", "slight snowfall"),
+    (73, "nevada moderada", "moderate snowfall"),
+    (75, "nevada intensa", "heavy snowfall"),
+    (77, "granos de nieve", "snow grains"),
+    (80, "chubascos ligeros", "slight rain showers"),
+    (81, "chubascos moderados", "moderate rain showers"),
+    (82, "chubascos violentos", "violent rain showers"),
+    (85, "chubascos de nieve ligeros", "slight snow showers"),
+    (86, "chubascos de nieve intensos", "heavy snow showers"),
+    (95, "tormenta", "thunderstorm"),
+    (
+        96,
+        "tormenta con granizo ligero",
+        "thunderstorm with slight hail",
+    ),
+    (
+        99,
+        "tormenta con granizo intenso",
+        "thunderstorm with heavy hail",
+    ),
+];
+
+#[tokio::test]
+async fn each_weather_code_is_read_by_its_name_in_each_language() {
+    for (code, spanish, english) in WEATHER_NAMES {
+        let hour = HourForecast {
+            weather_code: Some(code),
+            ..hour_at_nine()
+        };
+        let forecast = forecast_of(hour);
+
+        let body_es = body_with_forecast(forecast.clone(), "2026-11-02T09:30:00+01:00", "/").await;
+        let body_en = body_with_forecast(forecast, "2026-11-02T09:30:00+01:00", "/en").await;
+
+        let expected_es = format!(r#"<span class="reading">Ahora, {spanish}, 7 grados"#);
+        let expected_en = format!(r#"<span class="reading">Now, {english}, 7 degrees"#);
+        assert!(body_es.contains(&expected_es), "code {code}: {body_es}");
+        assert!(body_en.contains(&expected_en), "code {code}: {body_en}");
+    }
 }
 
 #[tokio::test]
