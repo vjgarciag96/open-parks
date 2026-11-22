@@ -144,7 +144,43 @@ struct Headline {
     closure: &'static [&'static str],
     alert: &'static str,
     schedule: Option<&'static str>,
+    checked: Checked,
 }
+
+/// How recent the answer says it is, for a status fetched at `FETCHED_AT`.
+#[derive(Clone, Copy)]
+enum Checked {
+    Fresh,
+    Stale,
+    Never,
+}
+
+struct PageCopy {
+    question: &'static str,
+    alerts: &'static str,
+    hours: &'static str,
+    last_known: &'static str,
+    checked_at_fetched_at: &'static str,
+    stale: &'static str,
+}
+
+const SPANISH: PageCopy = PageCopy {
+    question: "¿Está abierto el Retiro?",
+    alerts: "Alertas",
+    hours: "Horario",
+    last_known: "Último estado conocido",
+    checked_at_fetched_at: "Última comprobación a las 11:30",
+    stale: "Puede que este estado no esté al día. <a href=\"https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&amp;vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&amp;vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&amp;vgnextlocale=es\">Consulta la web del Ayuntamiento</a>",
+};
+
+const ENGLISH: PageCopy = PageCopy {
+    question: "Is Retiro Park open?",
+    alerts: "Alerts",
+    hours: "Hours",
+    last_known: "Last known status",
+    checked_at_fetched_at: "Last checked at 11:30",
+    stale: "This status may be out of date. <a href=\"https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&amp;vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&amp;vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&amp;vgnextlocale=es\">Check the City Council’s page</a>",
+};
 
 fn alerts_box(heading: &str, alert: &str) -> [String; 2] {
     [
@@ -153,51 +189,63 @@ fn alerts_box(heading: &str, alert: &str) -> [String; 2] {
     ]
 }
 
+/// The schedule line right under the answer.
 fn schedule_line(schedule: Option<&str>) -> String {
-    under_the_answer(&[], schedule)
+    match schedule {
+        Some(schedule) => format!(r#"</h1><p class="now">{schedule}</p>"#),
+        None => "</h1>".to_owned(),
+    }
 }
 
-fn under_the_answer(closure: &[&str], schedule: Option<&str>) -> String {
-    let closure: String = closure
+/// Everything from the answer to the alerts card, in order.
+fn under_the_answer(copy: &PageCopy, expected: &Headline) -> String {
+    let closure: String = expected
+        .closure
         .iter()
         .map(|line| format!(r#"<p class="closure">{line}</p>"#))
         .collect();
-    match schedule {
-        Some(schedule) => {
-            format!(r#"</h1>{closure}<p class="now">{schedule}</p><section class="alerts">"#)
-        }
-        None => format!(r#"</h1>{closure}<section class="alerts">"#),
-    }
+    let schedule = expected
+        .schedule
+        .map(|schedule| format!(r#"<p class="now">{schedule}</p>"#))
+        .unwrap_or_default();
+    let checked = format!(r#"<p class="checked">{}</p>"#, copy.checked_at_fetched_at);
+    let checked = match expected.checked {
+        Checked::Fresh => checked,
+        Checked::Stale => format!(r#"{checked}<p class="stale">{}</p>"#, copy.stale),
+        Checked::Never => String::new(),
+    };
+    format!(r#"</h1>{closure}{schedule}{checked}<section class="alerts">"#)
 }
 
 fn schedule_box(heading: &str) -> String {
     format!(r#"<section class="schedule"><h2>{heading}</h2><table class="opening-hours">"#)
 }
 
-fn assert_headline(body: &str, question: &str, (alerts, hours): (&str, &str), expected: &Headline) {
-    let [alerts_heading, alert] = alerts_box(alerts, expected.alert);
+fn assert_headline(body: &str, copy: &PageCopy, expected: &Headline) {
+    let [alerts_heading, alert] = alerts_box(copy.alerts, expected.alert);
     for part in [
-        h1(question, expected.answer),
-        under_the_answer(expected.closure, expected.schedule),
+        h1(copy.question, expected.answer),
+        under_the_answer(copy, expected),
         alerts_heading,
         alert,
-        schedule_box(hours),
+        schedule_box(copy.hours),
     ] {
         assert!(body.contains(&part), "{part}: {body}");
     }
-}
-
-fn assert_spanish_headline(body: &str, expected: &Headline) {
-    assert_headline(
-        body,
-        "¿Está abierto el Retiro?",
-        ("Alertas", "Horario"),
-        expected,
+    let last_known = format!(r#"<p class="last-known">{}</p><h1"#, copy.last_known);
+    assert_eq!(
+        body.contains(&last_known),
+        matches!(expected.checked, Checked::Stale),
+        "{last_known}: {body}"
     );
 }
 
+fn assert_spanish_headline(body: &str, expected: &Headline) {
+    assert_headline(body, &SPANISH, expected);
+}
+
 fn assert_english_headline(body: &str, expected: &Headline) {
-    assert_headline(body, "Is Retiro Park open?", ("Alerts", "Hours"), expected);
+    assert_headline(body, &ENGLISH, expected);
 }
 
 #[tokio::test]
@@ -252,6 +300,7 @@ async fn within_hours_the_answer_is_whether_the_alerts_let_the_park_open() {
         assert_spanish_headline(
             &body,
             &Headline {
+                checked: Checked::Fresh,
                 closure: &[],
                 answer,
                 alert,
@@ -291,6 +340,7 @@ async fn outside_hours_the_park_is_closed_whatever_the_alerts() {
         assert_spanish_headline(
             &body,
             &Headline {
+                checked: Checked::Stale,
                 closure: &[],
                 answer: "Cerrado",
                 alert,
@@ -352,6 +402,7 @@ async fn a_failing_upstream_says_the_alerts_could_not_be_checked() {
         assert_spanish_headline(
             &body,
             &Headline {
+                checked: Checked::Never,
                 closure: &[],
                 answer,
                 alert: "No hemos podido consultar si hay alertas",
@@ -437,6 +488,7 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
         (
             "/",
             BEFORE_THE_ALERT,
+            Checked::Fresh,
             "Abierto, cierre previsto por alerta",
             &["Cierre previsto de 12:00 a medianoche"][..],
             "Cierre previsto",
@@ -444,6 +496,7 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
         (
             "/",
             DURING_THE_ALERT,
+            Checked::Stale,
             "Cerrado",
             &["Por alerta meteorológica", "Durante el resto del día"],
             "Cerrado por alerta meteorológica",
@@ -451,6 +504,7 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
         (
             "/en",
             BEFORE_THE_ALERT,
+            Checked::Fresh,
             "Open, closure expected due to an alert",
             &["Closure expected from 12:00 to midnight"],
             "Closure expected",
@@ -458,14 +512,22 @@ async fn a_forecast_closure_answers_closed_once_its_window_is_under_way() {
         (
             "/en",
             DURING_THE_ALERT,
+            Checked::Stale,
             "Closed",
             &["Due to a weather alert", "For the rest of the day"],
             "Closed due to a weather alert",
         ),
     ];
-    for (uri, now, answer, closure, alert) in cases {
-        let body = body_at("code_6_live_closure.json", now, uri).await;
+    for (uri, now, checked, answer, closure, alert) in cases {
+        // Fetched the morning of the alert, at the same time of day as
+        // FETCHED_AT.
+        let latest = Ok(Fetched {
+            status: sigma::decode(&fixture("code_6_live_closure.json")).unwrap(),
+            fetched_at: BEFORE_THE_ALERT.parse().unwrap(),
+        });
+        let body = text_body(get_at(latest, now.parse().unwrap(), uri).await).await;
         let expected = Headline {
+            checked,
             closure,
             answer,
             alert,
@@ -487,6 +549,7 @@ async fn an_alert_closure_says_its_cause_and_when_it_reopens_under_the_answer() 
             WITHIN_HOURS,
             "/",
             Headline {
+                checked: Checked::Fresh,
                 answer: "Cerrado",
                 closure: &[
                     "Por alerta meteorológica",
@@ -500,6 +563,7 @@ async fn an_alert_closure_says_its_cause_and_when_it_reopens_under_the_answer() 
             OUTSIDE_HOURS,
             "/",
             Headline {
+                checked: Checked::Stale,
                 answer: "Cerrado",
                 closure: &[
                     "Por alerta meteorológica",
@@ -513,6 +577,7 @@ async fn an_alert_closure_says_its_cause_and_when_it_reopens_under_the_answer() 
             WITHIN_HOURS,
             "/en",
             Headline {
+                checked: Checked::Fresh,
                 answer: "Closed",
                 closure: &["Due to a weather alert", "Reopening: see the notes"],
                 alert: "Closed due to a weather alert",
@@ -523,6 +588,7 @@ async fn an_alert_closure_says_its_cause_and_when_it_reopens_under_the_answer() 
             OUTSIDE_HOURS,
             "/en",
             Headline {
+                checked: Checked::Stale,
                 answer: "Closed",
                 closure: &["Due to a weather alert", "Reopening: see the notes"],
                 alert: "Closed due to a weather alert",
@@ -559,11 +625,11 @@ async fn an_alert_closure_after_inspections_says_it_reopens_once_they_finish() {
     let cases = [
         (
             "/",
-            r#"</h1><p class="closure">Por alerta meteorológica</p><p class="closure">Reabrirá cuando terminen las inspecciones</p><section class="alerts">"#,
+            r#"</h1><p class="closure">Por alerta meteorológica</p><p class="closure">Reabrirá cuando terminen las inspecciones</p><p class="checked">"#,
         ),
         (
             "/en",
-            r#"</h1><p class="closure">Due to a weather alert</p><p class="closure">Reopens once inspections finish</p><section class="alerts">"#,
+            r#"</h1><p class="closure">Due to a weather alert</p><p class="closure">Reopens once inspections finish</p><p class="checked">"#,
         ),
     ];
     for (uri, expected) in cases {
@@ -584,7 +650,7 @@ async fn an_alert_closure_with_no_known_reopening_gives_only_its_cause() {
 
         assert!(
             body.contains(
-                r#"</h1><p class="closure">Por alerta meteorológica</p><section class="alerts">"#
+                r#"</h1><p class="closure">Por alerta meteorológica</p><p class="checked">"#
             ),
             "{reopening:?}: {body}"
         );
@@ -852,6 +918,7 @@ async fn within_hours_the_english_answer_is_whether_the_alerts_let_the_park_open
         assert_english_headline(
             &body,
             &Headline {
+                checked: Checked::Fresh,
                 closure: &[],
                 answer,
                 alert,
@@ -891,6 +958,7 @@ async fn outside_hours_the_english_answer_is_closed_whatever_the_alerts() {
         assert_english_headline(
             &body,
             &Headline {
+                checked: Checked::Stale,
                 closure: &[],
                 answer: "Closed",
                 alert,
@@ -913,6 +981,7 @@ async fn a_failing_upstream_outside_hours_is_explained_in_english() {
     assert_english_headline(
         &body,
         &Headline {
+            checked: Checked::Never,
             closure: &[],
             answer: "Closed",
             alert: "We couldn’t check for weather alerts",
@@ -1162,6 +1231,122 @@ async fn the_fetch_time_is_in_madrid_time_whatever_the_season() {
             )),
             "{fetched_at}: {body}"
         );
+    }
+}
+
+#[tokio::test]
+async fn a_fresh_status_says_when_it_was_last_checked_under_the_verdict_in_madrid_time() {
+    let cases = [
+        (
+            "/",
+            r#"<p class="now">Cierra a las 22:00</p><p class="checked">Última comprobación a las 11:30</p><section class="alerts">"#,
+        ),
+        (
+            "/en",
+            r#"<p class="now">Closes at 22:00</p><p class="checked">Last checked at 11:30</p><section class="alerts">"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let body = body_at("code_1_open.json", WITHIN_HOURS, uri).await;
+
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_check_time_is_in_madrid_time_in_winter() {
+    let latest = Ok(Fetched {
+        status: sigma::decode(&fixture("code_1_open.json")).unwrap(),
+        fetched_at: "2026-11-02T09:30:00Z".parse().unwrap(),
+    });
+
+    let body = text_body(get_at(latest, "2026-11-02T09:31:00Z".parse().unwrap(), "/").await).await;
+
+    assert!(
+        body.contains(r#"<p class="checked">Última comprobación a las 10:30</p>"#),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn a_check_on_an_earlier_day_says_its_date() {
+    let cases = [
+        (
+            "/",
+            r#"<p class="checked">Última comprobación el 10 de octubre a las 21:30</p>"#,
+        ),
+        (
+            "/en",
+            r#"<p class="checked">Last checked on 10 Oct at 21:30</p>"#,
+        ),
+    ];
+    for (uri, expected) in cases {
+        let latest = Ok(Fetched {
+            status: sigma::decode(&fixture("code_1_open.json")).unwrap(),
+            fetched_at: "2026-10-10T19:30:00Z".parse().unwrap(),
+        });
+
+        let body = text_body(get_at(latest, WITHIN_HOURS.parse().unwrap(), uri).await).await;
+
+        assert!(body.contains(expected), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_stale_status_is_marked_above_the_answer_and_points_to_the_source_under_it() {
+    let body = body_at("code_1_open.json", "2026-10-11T09:40:00Z", "/").await;
+
+    for expected in [
+        r#"<main><p class="last-known">Último estado conocido</p><h1"#,
+        r#"<p class="checked">Última comprobación a las 11:30</p><p class="stale">Puede que este estado no esté al día. <a href="https://www.madrid.es/portal/site/munimadrid/menuitem.0c57021e0d1f6162c345c34571f1a5a0/?vgnextfmt=default&amp;vgnextoid=51c3fb4f3f2cc710VgnVCM1000001d4a900aRCRD&amp;vgnextchannel=3edd31d3b28fe410VgnVCM1000000b205a0aRCRD&amp;vgnextlocale=es">Consulta la web del Ayuntamiento</a></p><section class="alerts">"#,
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_stale_status_is_marked_in_english() {
+    let body = body_at("code_1_open.json", "2026-10-11T09:40:00Z", "/en").await;
+
+    for expected in [
+        r#"<main><p class="last-known">Last known status</p><h1"#,
+        r#"<p class="stale">This status may be out of date. <a href="https://www.madrid.es/"#,
+        r#"">Check the City Council’s page</a></p><section class="alerts">"#,
+    ] {
+        assert!(body.contains(expected), "{expected}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_stale_status_leaves_the_alerts_card_without_a_stale_warning() {
+    let body = body_at("code_1_open.json", "2026-10-11T09:40:00Z", "/").await;
+
+    let alerts_card = body
+        .split(r#"<section class="alerts">"#)
+        .nth(1)
+        .and_then(|rest| rest.split("</section>").next())
+        .unwrap();
+    assert!(
+        !alerts_card.contains(r#"<p class="stale">"#),
+        "{alerts_card}"
+    );
+}
+
+#[tokio::test]
+async fn a_fresh_status_is_not_marked_as_last_known() {
+    let body = body_at("code_1_open.json", "2026-10-11T09:39:59Z", "/").await;
+
+    assert!(!body.contains(r#"<p class="last-known">"#), "{body}");
+    assert!(!body.contains(r#"<p class="stale">"#), "{body}");
+}
+
+#[tokio::test]
+async fn a_failing_upstream_shows_no_check_line() {
+    for uri in ["/", "/en"] {
+        let body = text_body(get(Err(sigma::FetchError::Timeout), uri).await).await;
+
+        assert!(!body.contains(r#"<p class="checked">"#), "{uri}: {body}");
+        assert!(!body.contains(r#"<p class="last-known">"#), "{uri}: {body}");
     }
 }
 
