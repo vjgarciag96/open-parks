@@ -5,6 +5,7 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{MethodRouter, get};
+use jiff::civil::{Date, Time};
 use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tokio::sync::watch;
@@ -174,18 +175,74 @@ fn retiro_status(
         now,
     );
     match &*latest {
-        Ok(fetched) => render(
-            lang,
-            site,
-            now,
-            &headline,
-            details(strings, fetched, now),
-            next_hours,
-        )
-        .into_response(),
+        Ok(fetched) => {
+            let checked = Checked::of(fetched, now);
+            let details = details(strings, fetched, &checked);
+            render(
+                lang,
+                site,
+                now,
+                &headline,
+                Freshness::Checked(checked),
+                details,
+                next_hours,
+            )
+            .into_response()
+        }
         Err(error) => {
-            let page = render(lang, site, now, &headline, html! {}, next_hours);
+            let page = render(
+                lang,
+                site,
+                now,
+                &headline,
+                Freshness::Unchecked,
+                html! {},
+                next_hours,
+            );
             (error.gateway_status(), page).into_response()
+        }
+    }
+}
+
+/// How recent the answer is, said under it.
+enum Freshness {
+    Unchecked,
+    Checked(Checked),
+}
+
+impl Freshness {
+    fn stale(&self) -> bool {
+        matches!(self, Freshness::Checked(checked) if checked.stale())
+    }
+}
+
+/// When the status was fetched, in Madrid time.
+struct Checked {
+    time: Time,
+    /// The day, when it isn't today.
+    earlier_day: Option<Date>,
+    elapsed: SignedDuration,
+}
+
+impl Checked {
+    fn of(fetched: &Fetched, now: Timestamp) -> Checked {
+        let at = fetched.fetched_at.to_zoned(schedule::madrid());
+        let today = now.to_zoned(schedule::madrid()).date();
+        Checked {
+            time: at.time(),
+            earlier_day: (at.date() != today).then_some(at.date()),
+            elapsed: now.duration_since(fetched.fetched_at),
+        }
+    }
+
+    fn stale(&self) -> bool {
+        self.elapsed >= STALE_AFTER
+    }
+
+    fn line(&self, strings: &Strings) -> String {
+        match self.earlier_day {
+            Some(day) => (strings.checked_on)(day, self.time),
+            None => (strings.checked_at)(self.time),
         }
     }
 }
@@ -207,24 +264,19 @@ fn tone(alerts: Alerts) -> Tone {
     Tone { class, icon }
 }
 
-fn details(strings: &Strings, fetched: &Fetched, now: Timestamp) -> Markup {
-    let elapsed = now.duration_since(fetched.fetched_at);
-    let stale = elapsed >= STALE_AFTER;
+fn details(strings: &Strings, fetched: &Fetched, checked: &Checked) -> Markup {
     let fetched_at = fetched.fetched_at_to_the_second();
     let in_madrid = fetched_at.to_zoned(schedule::madrid());
     html! {
         (status_details(strings, &fetched.status))
-        p.updated.stale[stale] {
+        p.updated.stale[checked.stale()] {
             span.dot aria-hidden="true" {}
             span {
                 (strings.updated)
                 time datetime=(fetched_at) { ((strings.updated_at)(in_madrid.date(), in_madrid.time())) }
                 ", "
-                span.ago { ((strings.ago)(Age::of(elapsed))) }
+                span.ago { ((strings.ago)(Age::of(checked.elapsed))) }
             }
-        }
-        @if stale {
-            p.stale { (strings.stale) }
         }
     }
 }
@@ -268,6 +320,7 @@ fn render(
     site: &Site,
     now: Timestamp,
     headline: &Headline,
+    freshness: Freshness,
     details: Markup,
     next_hours: Markup,
 ) -> Markup {
@@ -334,6 +387,9 @@ fn render(
                         }
                     }
                     main {
+                        @if freshness.stale() {
+                            p.last-known { (strings.last_known) }
+                        }
                         h1.long[answer.chars().count() > LONG_ANSWER_AFTER] {
                             span.question { (strings.question) }
                             " "
@@ -344,6 +400,16 @@ fn render(
                         }
                         @if let Some(schedule) = headline.schedule {
                             p.now { (strings.schedule_line(schedule)) }
+                        }
+                        @if let Freshness::Checked(checked) = &freshness {
+                            p.checked { (checked.line(strings)) }
+                            @if checked.stale() {
+                                p.stale {
+                                    (strings.stale)
+                                    " "
+                                    a href=(SOURCE_URL) { (strings.stale_link) }
+                                }
+                            }
                         }
                         section.alerts {
                             h2 { (strings.alerts) }
