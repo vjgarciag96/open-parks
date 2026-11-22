@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
@@ -22,6 +22,7 @@ use crate::web::structured_data;
 
 mod llms_txt;
 mod next_hours;
+mod og_card;
 pub mod weather_icon;
 
 const STYLE: &str = include_str!("../../assets/page.css");
@@ -85,6 +86,10 @@ pub fn router(
             get(async |State(state): State<PageState>| llms_txt::response(&state.site)),
         )
         .route("/favicon.svg", get(async || favicon()))
+        .route(
+            "/og/{file}",
+            get(async |Path(file): Path<String>| og_card::response(&file)),
+        )
         .with_state(PageState {
             latest,
             forecast,
@@ -247,6 +252,7 @@ fn render(
 ) -> Markup {
     let strings = lang.strings();
     let answer = strings.answer(headline.answer);
+    let preview_title = format!("{} {}", strings.question, strings.answer(headline.preview));
     html! {
         (DOCTYPE)
         html lang=(lang.code()) {
@@ -265,10 +271,16 @@ fn render(
                         link rel="alternate" hreflang=(hreflang) href=(href);
                     }
                     meta property="og:url" content=(public_url.of(lang.path()));
+                    meta property="og:image" content=(public_url.of(&og_card::path(headline, lang)));
+                    meta property="og:image:width" content=(og_card::WIDTH);
+                    meta property="og:image:height" content=(og_card::HEIGHT);
+                    meta property="og:image:type" content="image/png";
+                    meta property="og:image:alt" content=(preview_title);
+                    meta name="twitter:card" content="summary_large_image";
                 }
                 meta property="og:type" content="website";
                 meta property="og:site_name" content=(structured_data::SITE_NAME);
-                meta property="og:title" content={ (strings.question) " " (strings.answer(headline.preview)) };
+                meta property="og:title" content=(preview_title);
                 meta property="og:description" content=(strings.description);
                 meta property="og:locale" content=(lang.locale());
                 meta property="og:locale:alternate" content=(lang.other().locale());

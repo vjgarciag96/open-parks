@@ -18,6 +18,7 @@ use tokio::sync::watch;
 use tower::ServiceExt;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sigma");
+const OG_CARDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/og");
 const FORECAST: &str = include_str!("../tests/fixtures/open_meteo/rain_chances.json");
 const STYLE: &str = include_str!("../assets/page.css");
 const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
@@ -91,7 +92,8 @@ async fn main() -> std::io::Result<()> {
         )?;
         index.push_str(&format!(" <a href=\"{schemes}\">light &amp; dark</a></li>"));
     }
-    index.push_str(&format!("<li>{}</li></ul>", weather_icons(output)?));
+    index.push_str(&format!("<li>{}</li>", weather_icons(output)?));
+    index.push_str(&format!("<li>{}</li></ul>", link_preview_cards(output)?));
     let index_path = output.join("index.html");
     fs::write(&index_path, index)?;
     println!("open {}", index_path.display());
@@ -258,6 +260,27 @@ fn weather_icons(output: &Path) -> std::io::Result<String> {
         format!("{SCHEMES_HEAD}<title>Weather icons</title><h1>Weather icons</h1>{frames}"),
     )?;
     Ok("Weather icons: <a href=\"weather_icons.html\">light &amp; dark</a>".to_owned())
+}
+
+/// Copies every link preview card to `og/` and returns the index's links to
+/// them.
+fn link_preview_cards(output: &Path) -> std::io::Result<String> {
+    let cards = output.join("og");
+    fs::create_dir_all(&cards)?;
+    let mut names = Vec::new();
+    for entry in fs::read_dir(OG_CARDS)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|extension| extension == "png") {
+            fs::copy(&path, cards.join(path.file_name().unwrap()))?;
+            names.push(path.file_stem().unwrap().to_string_lossy().into_owned());
+        }
+    }
+    names.sort();
+    let links: String = names
+        .iter()
+        .map(|name| format!(" <a href=\"og/{name}.png\">{name}</a>"))
+        .collect();
+    Ok(format!("Link preview cards:{links}"))
 }
 
 fn fixtures() -> std::io::Result<Vec<(String, String)>> {

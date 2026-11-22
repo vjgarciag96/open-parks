@@ -1,3 +1,6 @@
+use std::collections::BTreeSet;
+use std::fs;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
@@ -51,15 +54,12 @@ fn public(url: &str) -> PublicUrl {
 }
 
 async fn get_with_public_url(latest: Latest, uri: &str) -> Response {
+    get_with_public_url_at(latest, FETCHED_AT.parse().unwrap(), uri).await
+}
+
+async fn get_with_public_url_at(latest: Latest, now: Timestamp, uri: &str) -> Response {
     let request = Request::get(uri).body(Body::empty()).unwrap();
-    send_to(
-        latest,
-        FETCHED_AT.parse().unwrap(),
-        None,
-        Some(PUBLIC_URL),
-        request,
-    )
-    .await
+    send_to(latest, now, None, Some(PUBLIC_URL), request).await
 }
 
 async fn get(latest: Latest, uri: &str) -> Response {
@@ -1080,6 +1080,279 @@ async fn the_link_preview_is_in_the_pages_language() {
         r#"<meta property="og:locale" content="en_GB"><meta property="og:locale:alternate" content="es_ES">"#,
     ] {
         assert!(english.contains(expected), "{expected}: {english}");
+    }
+}
+
+const OG_CARDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/og");
+
+const CARDS: [&str; 14] = [
+    "open.es.png",
+    "open.en.png",
+    "open-with-restrictions.es.png",
+    "open-with-restrictions.en.png",
+    "open-stay-not-advised.es.png",
+    "open-stay-not-advised.en.png",
+    "closure-expected.es.png",
+    "closure-expected.en.png",
+    "closed-by-alert.es.png",
+    "closed-by-alert.en.png",
+    "closed-by-schedule.es.png",
+    "closed-by-schedule.en.png",
+    "unknown.es.png",
+    "unknown.en.png",
+];
+
+async fn bytes_body(response: Response) -> Vec<u8> {
+    response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes()
+        .to_vec()
+}
+
+/// Width and height from a PNG's IHDR, its first chunk.
+fn png_size(bytes: &[u8]) -> (u32, u32) {
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n", "PNG signature");
+    assert_eq!(&bytes[12..16], b"IHDR", "first chunk");
+    let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap());
+    let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap());
+    (width, height)
+}
+
+#[tokio::test]
+async fn each_card_is_served_as_a_png_cached_for_a_year() {
+    for card in CARDS {
+        let response = get(fetched("code_1_open.json"), &format!("/og/{card}")).await;
+
+        assert_eq!(response.status(), StatusCode::OK, "{card}");
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "image/png",
+            "{card}"
+        );
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=31536000, immutable",
+            "{card}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn each_card_is_1200_by_630_and_under_300_kb() {
+    for card in CARDS {
+        let response = get(fetched("code_1_open.json"), &format!("/og/{card}")).await;
+
+        let body = bytes_body(response).await;
+        assert_eq!(png_size(&body), (1200, 630), "{card}");
+        assert!(body.len() < 300 * 1024, "{card}: {} bytes", body.len());
+    }
+}
+
+#[tokio::test]
+async fn each_card_is_the_file_of_its_name() {
+    for card in CARDS {
+        let response = get(fetched("code_1_open.json"), &format!("/og/{card}")).await;
+
+        let body = bytes_body(response).await;
+        let file = fs::read(format!("{OG_CARDS}/{card}")).unwrap();
+        assert!(body == file, "{card} is served as another card");
+    }
+}
+
+#[test]
+fn every_card_file_is_served() {
+    let files: BTreeSet<String> = fs::read_dir(OG_CARDS)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name.ends_with(".png"))
+        .collect();
+
+    assert_eq!(
+        files,
+        CARDS.map(str::to_owned).into(),
+        "card files and cards served"
+    );
+}
+
+#[tokio::test]
+async fn an_unknown_card_name_is_not_found() {
+    for uri in [
+        "/og/missing.es.png",
+        "/og/open.fr.png",
+        "/og/open.es",
+        "/og/card.html",
+        "/og/generate.sh",
+        "/og/",
+    ] {
+        let response = get(fetched("code_1_open.json"), uri).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+    }
+}
+
+/// The content of the page's `<meta property="{property}">`.
+fn meta_content<'a>(body: &'a str, property: &str) -> &'a str {
+    let start = format!(r#"<meta property="{property}" content=""#);
+    let (_, rest) = body
+        .split_once(&start)
+        .unwrap_or_else(|| panic!("no {property}: {body}"));
+    rest.split_once('"').unwrap().0
+}
+
+#[tokio::test]
+async fn each_page_links_a_large_preview_image_with_a_public_url() {
+    for uri in ["/", "/en"] {
+        let body = text_body(get_with_public_url(Err(sigma::FetchError::Timeout), uri).await).await;
+
+        for expected in [
+            r#"<meta property="og:image" content="https://retiro.example/og/"#,
+            r#"<meta property="og:image:width" content="1200">"#,
+            r#"<meta property="og:image:height" content="630">"#,
+            r#"<meta property="og:image:type" content="image/png">"#,
+            r#"<meta property="og:image:alt" content=""#,
+            r#"<meta name="twitter:card" content="summary_large_image">"#,
+        ] {
+            assert!(body.contains(expected), "{uri}: {expected}: {body}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_page_has_no_preview_image_without_a_public_url() {
+    for uri in ["/", "/en"] {
+        let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
+
+        assert!(!body.contains("og:image"), "{uri}: {body}");
+        assert!(!body.contains("twitter:card"), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_shows_the_answer_the_preview_gives() {
+    let cases = [
+        ("code_1_open.json", WITHIN_HOURS, "/", "open.es.png"),
+        ("code_1_open.json", WITHIN_HOURS, "/en", "open.en.png"),
+        (
+            "code_2_incidents.json",
+            WITHIN_HOURS,
+            "/",
+            "open-with-restrictions.es.png",
+        ),
+        (
+            "code_2_incidents.json",
+            WITHIN_HOURS,
+            "/en",
+            "open-with-restrictions.en.png",
+        ),
+        (
+            "code_3_yellow_alert.json",
+            WITHIN_HOURS,
+            "/",
+            "open-with-restrictions.es.png",
+        ),
+        (
+            "code_3_yellow_alert.json",
+            WITHIN_HOURS,
+            "/en",
+            "open-with-restrictions.en.png",
+        ),
+        (
+            "code_4_orange_alert.json",
+            WITHIN_HOURS,
+            "/",
+            "open-stay-not-advised.es.png",
+        ),
+        (
+            "code_4_orange_alert.json",
+            WITHIN_HOURS,
+            "/en",
+            "open-stay-not-advised.en.png",
+        ),
+        (
+            "code_5_red_alert_closure.json",
+            WITHIN_HOURS,
+            "/",
+            "closure-expected.es.png",
+        ),
+        (
+            "code_5_red_alert_closure.json",
+            WITHIN_HOURS,
+            "/en",
+            "closure-expected.en.png",
+        ),
+        (
+            "code_7_closed.json",
+            WITHIN_HOURS,
+            "/",
+            "closed-by-alert.es.png",
+        ),
+        (
+            "code_7_closed.json",
+            OUTSIDE_HOURS,
+            "/en",
+            "closed-by-alert.en.png",
+        ),
+        (
+            "code_1_open.json",
+            OUTSIDE_HOURS,
+            "/",
+            "closed-by-schedule.es.png",
+        ),
+        (
+            "code_1_open.json",
+            OUTSIDE_HOURS,
+            "/en",
+            "closed-by-schedule.en.png",
+        ),
+        ("unknown_codes.json", WITHIN_HOURS, "/", "unknown.es.png"),
+        ("unknown_codes.json", WITHIN_HOURS, "/en", "unknown.en.png"),
+    ];
+    for (name, now, uri, card) in cases {
+        let response = get_with_public_url_at(fetched(name), now.parse().unwrap(), uri).await;
+
+        let body = text_body(response).await;
+        assert_eq!(
+            meta_content(&body, "og:image"),
+            format!("https://retiro.example/og/{card}"),
+            "fixture {name} at {now} on {uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_without_the_alerts_shows_the_answer_the_hours_give() {
+    let cases = [
+        (WITHIN_HOURS, "/", "unknown.es.png"),
+        (WITHIN_HOURS, "/en", "unknown.en.png"),
+        (OUTSIDE_HOURS, "/", "closed-by-schedule.es.png"),
+    ];
+    for (now, uri, card) in cases {
+        let latest = Err(sigma::FetchError::Timeout);
+        let response = get_with_public_url_at(latest, now.parse().unwrap(), uri).await;
+
+        let body = text_body(response).await;
+        assert_eq!(
+            meta_content(&body, "og:image"),
+            format!("https://retiro.example/og/{card}"),
+            "timeout at {now} on {uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_is_described_by_the_preview_title() {
+    for uri in ["/", "/en"] {
+        let response = get_with_public_url(fetched("code_7_closed.json"), uri).await;
+
+        let body = text_body(response).await;
+        assert_eq!(
+            meta_content(&body, "og:image:alt"),
+            meta_content(&body, "og:title"),
+            "{uri}: og:image:alt and og:title"
+        );
     }
 }
 
