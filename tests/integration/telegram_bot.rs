@@ -197,6 +197,41 @@ async fn start_explains_the_bot_and_replies_with_the_status_without_subscribing(
 }
 
 #[tokio::test]
+async fn start_from_the_pages_subscribe_link_subscribes_as_subscribe_does() {
+    let bot = Bot::start(closed()).await;
+    let by_subscribe = Bot::start(closed()).await;
+
+    bot.handle(
+        "message",
+        private_message(42, Some("es"), "/start subscribe"),
+    )
+    .await;
+    by_subscribe
+        .handle("message", private_message(42, Some("es"), "/subscribe"))
+        .await;
+
+    assert_eq!(bot.subscribers().await, [subscriber(42, Lang::Es)]);
+    assert_eq!(bot.replies(), by_subscribe.replies());
+}
+
+#[tokio::test]
+async fn start_with_any_other_payload_explains_the_bot_without_subscribing() {
+    for text in ["/start other", "/start subscribe_me"] {
+        let bot = Bot::start(closed()).await;
+        let plain_start = Bot::start(closed()).await;
+
+        bot.handle("message", private_message(42, Some("en"), text))
+            .await;
+        plain_start
+            .handle("message", private_message(42, Some("en"), "/start"))
+            .await;
+
+        assert_eq!(bot.subscribers().await, [], "{text}");
+        assert_eq!(bot.replies(), plain_start.replies(), "{text}");
+    }
+}
+
+#[tokio::test]
 async fn start_replies_in_the_subscribed_chats_language() {
     let bot = Bot::start(open()).await;
     bot.handle("message", private_message(42, Some("es"), "/subscribe"))

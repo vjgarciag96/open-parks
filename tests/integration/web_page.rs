@@ -1321,15 +1321,8 @@ async fn a_stale_status_is_marked_in_english() {
 async fn a_stale_status_leaves_the_alerts_card_without_a_stale_warning() {
     let body = body_at("code_1_open.json", "2026-10-11T09:40:00Z", "/").await;
 
-    let alerts_card = body
-        .split(r#"<section class="alerts">"#)
-        .nth(1)
-        .and_then(|rest| rest.split("</section>").next())
-        .unwrap();
-    assert!(
-        !alerts_card.contains(r#"<p class="stale">"#),
-        "{alerts_card}"
-    );
+    let card = alerts_card(&body);
+    assert!(!card.contains(r#"<p class="stale">"#), "{card}");
 }
 
 #[tokio::test]
@@ -1611,6 +1604,73 @@ async fn the_page_links_to_the_telegram_bot_when_there_is_one() {
             english.contains("</svg>Get notified on Telegram</a>"),
             "{english}"
         );
+    }
+}
+
+fn alerts_card(body: &str) -> &str {
+    body.split_once(r#"<section class="alerts">"#)
+        .and_then(|(_, rest)| rest.split_once("</section>"))
+        .map(|(card, _)| card)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn during_an_alert_closure_the_alerts_card_offers_to_subscribe_in_one_tap() {
+    let cases = [
+        (
+            "code_7_closed.json",
+            "/",
+            "Avísame cuando reabra",
+            "Se abrirá Telegram. Pulsa Iniciar para suscribirte.",
+        ),
+        (
+            "code_7_closed.json",
+            "/en",
+            "Notify me when it reopens",
+            "Telegram will open. Tap Start to subscribe.",
+        ),
+        (
+            "code_5_red_alert_closure.json",
+            "/",
+            "Avísame si cierra o reabre",
+            "Se abrirá Telegram. Pulsa Iniciar para suscribirte.",
+        ),
+        (
+            "code_5_red_alert_closure.json",
+            "/en",
+            "Notify me if it closes or reopens",
+            "Telegram will open. Tap Start to subscribe.",
+        ),
+    ];
+    for (name, uri, button, hint) in cases {
+        let body = text_body(get_with_bot(fetched(name), uri).await).await;
+
+        let card = alerts_card(&body);
+        for expected in [
+            r#"<p class="telegram"><a href="https://t.me/retiro_abierto_bot?start=subscribe"><svg aria-hidden="true""#.to_owned(),
+            format!(r#"</svg>{button}</a></p><p class="telegram-hint">{hint}</p>"#),
+        ] {
+            assert!(card.contains(&expected), "fixture {name} on {uri}: {expected}: {card}");
+        }
+        assert_eq!(
+            body.matches("https://t.me/").count(),
+            1,
+            "fixture {name} on {uri}: {body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn without_an_alert_closure_the_telegram_button_stays_below_the_parks_hours() {
+    for name in ["code_1_open.json", "code_3_yellow_alert.json"] {
+        let body = text_body(get_with_bot(fetched(name), "/").await).await;
+
+        assert!(
+            body.contains(r#"</table></section><p class="telegram"><a href="https://t.me/retiro_abierto_bot"><svg"#),
+            "fixture {name}: {body}"
+        );
+        assert!(!body.contains("?start=subscribe"), "fixture {name}: {body}");
+        assert!(!body.contains("telegram-hint\">"), "fixture {name}: {body}");
     }
 }
 

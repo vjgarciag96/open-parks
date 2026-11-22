@@ -23,6 +23,7 @@ const FORECAST: &str = include_str!("../tests/fixtures/open_meteo/rain_chances.j
 const STYLE: &str = include_str!("../assets/page.css");
 const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
 const DETAILED: &str = "code_6_red_alert_restrictions";
+const CLOSED: &str = "code_7_closed";
 const LANGS: [&str; 2] = ["es", "en"];
 const TELEGRAM_BOT: &str = "retiro_abierto_bot";
 const SCHEMES: [&str; 2] = ["light", "dark"];
@@ -129,6 +130,9 @@ fn previews() -> std::io::Result<Vec<Preview>> {
         };
         previews.push(fetched("", DAY, 0, None));
         previews.push(fetched(".night", NIGHT, 0, None));
+        if name == CLOSED {
+            previews.push(fetched(".telegram_bot", DAY, 0, Some(TELEGRAM_BOT)));
+        }
         if name == LIVE_CLOSURE {
             for (variant, at) in [
                 (".before_window", BEFORE_THE_LIVE_CLOSURE),
