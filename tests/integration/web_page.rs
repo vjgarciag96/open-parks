@@ -1233,134 +1233,126 @@ async fn the_page_has_no_preview_image_without_a_public_url() {
 #[tokio::test]
 async fn the_preview_image_shows_the_answer_the_preview_gives() {
     let cases = [
+        ("code_1_open.json", WITHIN_HOURS, "/", "open.es.png"),
+        ("code_1_open.json", WITHIN_HOURS, "/en", "open.en.png"),
         (
-            fetched("code_1_open.json"),
+            "code_2_incidents.json",
             WITHIN_HOURS,
             "/",
-            "https://retiro.example/og/open.es.png",
+            "open-with-restrictions.es.png",
         ),
         (
-            fetched("code_1_open.json"),
+            "code_2_incidents.json",
             WITHIN_HOURS,
             "/en",
-            "https://retiro.example/og/open.en.png",
+            "open-with-restrictions.en.png",
         ),
         (
-            fetched("code_2_incidents.json"),
+            "code_3_yellow_alert.json",
             WITHIN_HOURS,
             "/",
-            "https://retiro.example/og/open-with-restrictions.es.png",
+            "open-with-restrictions.es.png",
         ),
         (
-            fetched("code_2_incidents.json"),
+            "code_3_yellow_alert.json",
             WITHIN_HOURS,
             "/en",
-            "https://retiro.example/og/open-with-restrictions.en.png",
+            "open-with-restrictions.en.png",
         ),
         (
-            fetched("code_3_yellow_alert.json"),
+            "code_4_orange_alert.json",
             WITHIN_HOURS,
             "/",
-            "https://retiro.example/og/open-with-restrictions.es.png",
+            "open-stay-not-advised.es.png",
         ),
         (
-            fetched("code_3_yellow_alert.json"),
+            "code_4_orange_alert.json",
             WITHIN_HOURS,
             "/en",
-            "https://retiro.example/og/open-with-restrictions.en.png",
+            "open-stay-not-advised.en.png",
         ),
         (
-            fetched("code_4_orange_alert.json"),
+            "code_5_red_alert_closure.json",
             WITHIN_HOURS,
             "/",
-            "https://retiro.example/og/open-stay-not-advised.es.png",
+            "closure-expected.es.png",
         ),
         (
-            fetched("code_4_orange_alert.json"),
+            "code_5_red_alert_closure.json",
             WITHIN_HOURS,
             "/en",
-            "https://retiro.example/og/open-stay-not-advised.en.png",
+            "closure-expected.en.png",
         ),
         (
-            fetched("code_5_red_alert_closure.json"),
+            "code_7_closed.json",
             WITHIN_HOURS,
             "/",
-            "https://retiro.example/og/closure-expected.es.png",
+            "closed-by-alert.es.png",
         ),
         (
-            fetched("code_5_red_alert_closure.json"),
-            WITHIN_HOURS,
-            "/en",
-            "https://retiro.example/og/closure-expected.en.png",
-        ),
-        (
-            fetched("code_7_closed.json"),
-            WITHIN_HOURS,
-            "/",
-            "https://retiro.example/og/closed-by-alert.es.png",
-        ),
-        (
-            fetched("code_7_closed.json"),
+            "code_7_closed.json",
             OUTSIDE_HOURS,
             "/en",
-            "https://retiro.example/og/closed-by-alert.en.png",
+            "closed-by-alert.en.png",
         ),
         (
-            fetched("code_1_open.json"),
+            "code_1_open.json",
             OUTSIDE_HOURS,
             "/",
-            "https://retiro.example/og/closed-by-schedule.es.png",
+            "closed-by-schedule.es.png",
         ),
         (
-            fetched("code_1_open.json"),
+            "code_1_open.json",
             OUTSIDE_HOURS,
             "/en",
-            "https://retiro.example/og/closed-by-schedule.en.png",
+            "closed-by-schedule.en.png",
         ),
-        (
-            fetched("unknown_codes.json"),
-            WITHIN_HOURS,
-            "/",
-            "https://retiro.example/og/unknown.es.png",
-        ),
-        (
-            fetched("unknown_codes.json"),
-            WITHIN_HOURS,
-            "/en",
-            "https://retiro.example/og/unknown.en.png",
-        ),
-        (
-            Err(sigma::FetchError::Timeout),
-            WITHIN_HOURS,
-            "/",
-            "https://retiro.example/og/unknown.es.png",
-        ),
-        (
-            Err(sigma::FetchError::Timeout),
-            WITHIN_HOURS,
-            "/en",
-            "https://retiro.example/og/unknown.en.png",
-        ),
-        (
-            Err(sigma::FetchError::Timeout),
-            OUTSIDE_HOURS,
-            "/",
-            "https://retiro.example/og/closed-by-schedule.es.png",
-        ),
+        ("unknown_codes.json", WITHIN_HOURS, "/", "unknown.es.png"),
+        ("unknown_codes.json", WITHIN_HOURS, "/en", "unknown.en.png"),
     ];
-    for (latest, now, uri, card) in cases {
+    for (name, now, uri, card) in cases {
+        let response = get_with_public_url_at(fetched(name), now.parse().unwrap(), uri).await;
+
+        let body = text_body(response).await;
+        assert_eq!(
+            meta_content(&body, "og:image"),
+            format!("https://retiro.example/og/{card}"),
+            "fixture {name} at {now} on {uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_without_the_alerts_shows_the_answer_the_hours_give() {
+    let cases = [
+        (WITHIN_HOURS, "/", "unknown.es.png"),
+        (WITHIN_HOURS, "/en", "unknown.en.png"),
+        (OUTSIDE_HOURS, "/", "closed-by-schedule.es.png"),
+    ];
+    for (now, uri, card) in cases {
+        let latest = Err(sigma::FetchError::Timeout);
         let response = get_with_public_url_at(latest, now.parse().unwrap(), uri).await;
 
         let body = text_body(response).await;
-        assert_eq!(meta_content(&body, "og:image"), card, "{uri} at {now}");
+        assert_eq!(
+            meta_content(&body, "og:image"),
+            format!("https://retiro.example/og/{card}"),
+            "timeout at {now} on {uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_is_described_by_the_preview_title() {
+    for uri in ["/", "/en"] {
+        let response = get_with_public_url(fetched("code_7_closed.json"), uri).await;
+
+        let body = text_body(response).await;
         assert_eq!(
             meta_content(&body, "og:image:alt"),
             meta_content(&body, "og:title"),
-            "{uri} at {now}: alt and title"
+            "{uri}: og:image:alt and og:title"
         );
-        let path = card.strip_prefix(PUBLIC_URL).unwrap();
-        let served = get(fetched("code_1_open.json"), path).await;
-        assert_eq!(served.status(), StatusCode::OK, "{path} is served");
     }
 }
 

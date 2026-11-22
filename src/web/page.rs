@@ -252,7 +252,7 @@ fn render(
 ) -> Markup {
     let strings = lang.strings();
     let answer = strings.answer(headline.answer);
-    let preview = format!("{} {}", strings.question, strings.answer(headline.preview));
+    let preview_title = format!("{} {}", strings.question, strings.answer(headline.preview));
     html! {
         (DOCTYPE)
         html lang=(lang.code()) {
@@ -275,12 +275,12 @@ fn render(
                     meta property="og:image:width" content=(og_card::WIDTH);
                     meta property="og:image:height" content=(og_card::HEIGHT);
                     meta property="og:image:type" content="image/png";
-                    meta property="og:image:alt" content=(preview);
+                    meta property="og:image:alt" content=(preview_title);
                     meta name="twitter:card" content="summary_large_image";
                 }
                 meta property="og:type" content="website";
                 meta property="og:site_name" content=(structured_data::SITE_NAME);
-                meta property="og:title" content=(preview);
+                meta property="og:title" content=(preview_title);
                 meta property="og:description" content=(strings.description);
                 meta property="og:locale" content=(lang.locale());
                 meta property="og:locale:alternate" content=(lang.other().locale());

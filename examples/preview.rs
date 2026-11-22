@@ -18,7 +18,7 @@ use tokio::sync::watch;
 use tower::ServiceExt;
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sigma");
-const CARDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/og");
+const OG_CARDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/og");
 const FORECAST: &str = include_str!("../tests/fixtures/open_meteo/rain_chances.json");
 const STYLE: &str = include_str!("../assets/page.css");
 const OUTPUT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/preview");
@@ -268,7 +268,7 @@ fn link_preview_cards(output: &Path) -> std::io::Result<String> {
     let cards = output.join("og");
     fs::create_dir_all(&cards)?;
     let mut names = Vec::new();
-    for entry in fs::read_dir(CARDS)? {
+    for entry in fs::read_dir(OG_CARDS)? {
         let path = entry?.path();
         if path.extension().is_some_and(|extension| extension == "png") {
             fs::copy(&path, cards.join(path.file_name().unwrap()))?;
