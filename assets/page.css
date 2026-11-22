@@ -239,19 +239,25 @@ section h2 {
   margin: 0 auto;
 }
 
+/* The trailing edge fades out while more hours are offscreen; at the end
+   of the scroll only the end padding is under the fade. */
 .hours {
   flex: 1;
   min-width: 0;
   display: flex;
   margin: 0;
-  padding: 0 0 0.5rem;
+  padding: 0 24px 0.5rem 0;
   list-style: none;
   overflow-x: auto;
+  scroll-snap-type: x mandatory;
   scrollbar-width: thin;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 }
 
 .hours li {
   flex: none;
+  scroll-snap-align: start;
   box-sizing: border-box;
   width: 52px;
   padding: 0.5rem 0;
