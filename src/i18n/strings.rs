@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 
 use jiff::SignedDuration;
-use jiff::civil::{Date, Time, Weekday};
+use jiff::civil::{Date, DateTime, Time, Weekday};
 
 use super::Lang;
+use crate::park::forecast::{HourLabel, Weather};
 use crate::park::headline::{Alerts, Answer, ScheduleLine};
 use crate::park::incident::{ClockTime, IncidentDates, IncidentHours};
 use crate::park::schedule::Season;
@@ -51,6 +52,11 @@ pub(crate) struct Strings {
     pub(crate) alert_closure_note: fn(ClockTime, ClockTime) -> String,
     /// Short names, Monday first.
     pub(crate) weekdays: [&'static str; 7],
+    /// Full names as read mid-sentence, Monday first.
+    pub(crate) weekdays_full: [&'static str; 7],
+    pub(crate) weather: fn(Weather) -> &'static str,
+    /// An hour's forecast as one sentence, for screen readers.
+    pub(crate) hour_reading: fn(&HourReading) -> String,
     /// The accessible name of the columns that scroll sideways.
     pub(crate) hourly_forecast: &'static str,
     pub(crate) forecast_legend: &'static str,
@@ -170,6 +176,74 @@ impl Strings {
     pub(crate) fn weekday(&self, weekday: Weekday) -> &'static str {
         self.weekdays
             [usize::try_from(weekday.to_monday_zero_offset()).expect("weekdays start at 0")]
+    }
+
+    pub(crate) fn weekday_full(&self, weekday: Weekday) -> &'static str {
+        self.weekdays_full
+            [usize::try_from(weekday.to_monday_zero_offset()).expect("weekdays start at 0")]
+    }
+}
+
+/// What one hour's column shows, rounded as shown, None where it shows
+/// nothing.
+pub(crate) struct HourReading {
+    pub(crate) label: HourLabel,
+    /// In Madrid time.
+    pub(crate) at: DateTime,
+    pub(crate) weather: Option<Weather>,
+    /// In °C.
+    pub(crate) temperature: Option<i64>,
+    /// In %.
+    pub(crate) rain_chance: Option<u8>,
+    /// In km/h.
+    pub(crate) gusts: Option<i64>,
+}
+
+impl HourReading {
+    /// The hour worded by `when`, then each value there is, worded by
+    /// `value`.
+    fn read(
+        &self,
+        when: fn(HourLabel, DateTime) -> String,
+        weather: fn(Weather) -> &'static str,
+        value: impl Fn(Value) -> String,
+    ) -> String {
+        let parts = [
+            Some(when(self.label, self.at)),
+            self.weather.map(|code| weather(code).to_owned()),
+            self.temperature.map(|t| value(Value::Temperature(t))),
+            self.rain_chance.map(|p| value(Value::RainChance(p))),
+            self.gusts.map(|g| value(Value::Gusts(g))),
+        ];
+        parts.into_iter().flatten().collect::<Vec<_>>().join(", ")
+    }
+}
+
+enum Value {
+    Temperature(i64),
+    RainChance(u8),
+    Gusts(i64),
+}
+
+/// The hour as its column's label gives it, with its day in full.
+fn es_when(label: HourLabel, at: DateTime) -> String {
+    let time = format!("{}:00", at.hour());
+    match label {
+        HourLabel::Now => ES.hour_now.to_owned(),
+        HourLabel::TodayAndTime => format!("hoy {time}"),
+        HourLabel::DayAndTime => format!("{} {time}", ES.weekday_full(at.weekday())),
+        HourLabel::Time => time,
+    }
+}
+
+/// The hour as its column's label gives it, with its day in full.
+fn en_when(label: HourLabel, at: DateTime) -> String {
+    let time = format!("{}:00", at.hour());
+    match label {
+        HourLabel::Now => EN.hour_now.to_owned(),
+        HourLabel::TodayAndTime => format!("today {time}"),
+        HourLabel::DayAndTime => format!("{} {time}", EN.weekday_full(at.weekday())),
+        HourLabel::Time => time,
     }
 }
 
@@ -326,6 +400,53 @@ const ES: Strings = Strings {
         )
     },
     weekdays: ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
+    weekdays_full: [
+        "lunes",
+        "martes",
+        "miércoles",
+        "jueves",
+        "viernes",
+        "sábado",
+        "domingo",
+    ],
+    weather: |weather| match weather {
+        Weather::ClearSky => "despejado",
+        Weather::MainlyClear => "mayormente despejado",
+        Weather::PartlyCloudy => "parcialmente nublado",
+        Weather::Overcast => "cubierto",
+        Weather::Fog => "niebla",
+        Weather::RimeFog => "niebla con escarcha",
+        Weather::LightDrizzle => "llovizna ligera",
+        Weather::ModerateDrizzle => "llovizna moderada",
+        Weather::DenseDrizzle => "llovizna intensa",
+        Weather::LightFreezingDrizzle => "llovizna helada ligera",
+        Weather::DenseFreezingDrizzle => "llovizna helada intensa",
+        Weather::SlightRain => "lluvia ligera",
+        Weather::ModerateRain => "lluvia moderada",
+        Weather::HeavyRain => "lluvia intensa",
+        Weather::LightFreezingRain => "lluvia helada ligera",
+        Weather::HeavyFreezingRain => "lluvia helada intensa",
+        Weather::SlightSnowfall => "nevada ligera",
+        Weather::ModerateSnowfall => "nevada moderada",
+        Weather::HeavySnowfall => "nevada intensa",
+        Weather::SnowGrains => "granos de nieve",
+        Weather::SlightRainShowers => "chubascos ligeros",
+        Weather::ModerateRainShowers => "chubascos moderados",
+        Weather::ViolentRainShowers => "chubascos violentos",
+        Weather::SlightSnowShowers => "chubascos de nieve ligeros",
+        Weather::HeavySnowShowers => "chubascos de nieve intensos",
+        Weather::Thunderstorm => "tormenta",
+        Weather::ThunderstormWithSlightHail => "tormenta con granizo ligero",
+        Weather::ThunderstormWithHeavyHail => "tormenta con granizo intenso",
+    },
+    hour_reading: |reading| {
+        reading.read(es_when, ES.weather, |value| match value {
+            Value::Temperature(t @ (1 | -1)) => format!("{t} grado"),
+            Value::Temperature(t) => format!("{t} grados"),
+            Value::RainChance(p) => format!("{p} % de probabilidad de lluvia"),
+            Value::Gusts(g) => format!("rachas de {g} km/h"),
+        })
+    },
     hourly_forecast: "Previsión por horas",
     forecast_legend: "Probabilidad de lluvia. Rachas en km/h",
     forecast_unavailable: "La previsión no está disponible.",
@@ -454,6 +575,53 @@ const EN: Strings = Strings {
         )
     },
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    weekdays_full: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ],
+    weather: |weather| match weather {
+        Weather::ClearSky => "clear sky",
+        Weather::MainlyClear => "mainly clear",
+        Weather::PartlyCloudy => "partly cloudy",
+        Weather::Overcast => "overcast",
+        Weather::Fog => "fog",
+        Weather::RimeFog => "rime fog",
+        Weather::LightDrizzle => "light drizzle",
+        Weather::ModerateDrizzle => "moderate drizzle",
+        Weather::DenseDrizzle => "dense drizzle",
+        Weather::LightFreezingDrizzle => "light freezing drizzle",
+        Weather::DenseFreezingDrizzle => "dense freezing drizzle",
+        Weather::SlightRain => "slight rain",
+        Weather::ModerateRain => "moderate rain",
+        Weather::HeavyRain => "heavy rain",
+        Weather::LightFreezingRain => "light freezing rain",
+        Weather::HeavyFreezingRain => "heavy freezing rain",
+        Weather::SlightSnowfall => "slight snowfall",
+        Weather::ModerateSnowfall => "moderate snowfall",
+        Weather::HeavySnowfall => "heavy snowfall",
+        Weather::SnowGrains => "snow grains",
+        Weather::SlightRainShowers => "slight rain showers",
+        Weather::ModerateRainShowers => "moderate rain showers",
+        Weather::ViolentRainShowers => "violent rain showers",
+        Weather::SlightSnowShowers => "slight snow showers",
+        Weather::HeavySnowShowers => "heavy snow showers",
+        Weather::Thunderstorm => "thunderstorm",
+        Weather::ThunderstormWithSlightHail => "thunderstorm with slight hail",
+        Weather::ThunderstormWithHeavyHail => "thunderstorm with heavy hail",
+    },
+    hour_reading: |reading| {
+        reading.read(en_when, EN.weather, |value| match value {
+            Value::Temperature(t @ (1 | -1)) => format!("{t} degree"),
+            Value::Temperature(t) => format!("{t} degrees"),
+            Value::RainChance(p) => format!("{p}% chance of rain"),
+            Value::Gusts(g) => format!("gusts of {g} km/h"),
+        })
+    },
     hourly_forecast: "Hourly forecast",
     forecast_legend: "Rain chance. Gusts in km/h",
     forecast_unavailable: "The forecast isn’t available.",
