@@ -54,15 +54,12 @@ fn public(url: &str) -> PublicUrl {
 }
 
 async fn get_with_public_url(latest: Latest, uri: &str) -> Response {
+    get_with_public_url_at(latest, FETCHED_AT.parse().unwrap(), uri).await
+}
+
+async fn get_with_public_url_at(latest: Latest, now: Timestamp, uri: &str) -> Response {
     let request = Request::get(uri).body(Body::empty()).unwrap();
-    send_to(
-        latest,
-        FETCHED_AT.parse().unwrap(),
-        None,
-        Some(PUBLIC_URL),
-        request,
-    )
-    .await
+    send_to(latest, now, None, Some(PUBLIC_URL), request).await
 }
 
 async fn get(latest: Latest, uri: &str) -> Response {
@@ -1189,6 +1186,141 @@ async fn an_unknown_card_name_is_not_found() {
         let response = get(fetched("code_1_open.json"), uri).await;
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{uri}");
+    }
+}
+
+/// The content of the page's `<meta property="{property}">`.
+fn meta_content<'a>(body: &'a str, property: &str) -> &'a str {
+    let start = format!(r#"<meta property="{property}" content=""#);
+    let (_, rest) = body
+        .split_once(&start)
+        .unwrap_or_else(|| panic!("no {property}: {body}"));
+    rest.split_once('"').unwrap().0
+}
+
+#[tokio::test]
+async fn each_page_links_a_large_preview_image_with_a_public_url() {
+    for uri in ["/", "/en"] {
+        let body = text_body(get_with_public_url(Err(sigma::FetchError::Timeout), uri).await).await;
+
+        for expected in [
+            r#"<meta property="og:image" content="https://retiro.example/og/"#,
+            r#"<meta property="og:image:width" content="1200">"#,
+            r#"<meta property="og:image:height" content="630">"#,
+            r#"<meta property="og:image:type" content="image/png">"#,
+            r#"<meta property="og:image:alt" content=""#,
+            r#"<meta name="twitter:card" content="summary_large_image">"#,
+        ] {
+            assert!(body.contains(expected), "{uri}: {expected}: {body}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn the_page_has_no_preview_image_without_a_public_url() {
+    for uri in ["/", "/en"] {
+        let body = text_body(get(fetched("code_1_open.json"), uri).await).await;
+
+        assert!(!body.contains("og:image"), "{uri}: {body}");
+        assert!(!body.contains("twitter:card"), "{uri}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_preview_image_shows_the_answer_the_preview_gives() {
+    let cases = [
+        (
+            fetched("code_1_open.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/open.es.png",
+        ),
+        (
+            fetched("code_1_open.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/open.en.png",
+        ),
+        (
+            fetched("code_5_red_alert_closure.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/closure-expected.es.png",
+        ),
+        (
+            fetched("code_5_red_alert_closure.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/closure-expected.en.png",
+        ),
+        (
+            fetched("code_7_closed.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/closed-by-alert.es.png",
+        ),
+        (
+            fetched("code_7_closed.json"),
+            OUTSIDE_HOURS,
+            "/en",
+            "https://retiro.example/og/closed-by-alert.en.png",
+        ),
+        (
+            fetched("code_1_open.json"),
+            OUTSIDE_HOURS,
+            "/",
+            "https://retiro.example/og/closed-by-schedule.es.png",
+        ),
+        (
+            fetched("code_1_open.json"),
+            OUTSIDE_HOURS,
+            "/en",
+            "https://retiro.example/og/closed-by-schedule.en.png",
+        ),
+        (
+            fetched("unknown_codes.json"),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/unknown.es.png",
+        ),
+        (
+            fetched("unknown_codes.json"),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/unknown.en.png",
+        ),
+        (
+            Err(sigma::FetchError::Timeout),
+            WITHIN_HOURS,
+            "/",
+            "https://retiro.example/og/unknown.es.png",
+        ),
+        (
+            Err(sigma::FetchError::Timeout),
+            WITHIN_HOURS,
+            "/en",
+            "https://retiro.example/og/unknown.en.png",
+        ),
+        (
+            Err(sigma::FetchError::Timeout),
+            OUTSIDE_HOURS,
+            "/",
+            "https://retiro.example/og/closed-by-schedule.es.png",
+        ),
+    ];
+    for (latest, now, uri, card) in cases {
+        let response = get_with_public_url_at(latest, now.parse().unwrap(), uri).await;
+
+        let body = text_body(response).await;
+        assert_eq!(meta_content(&body, "og:image"), card, "{uri} at {now}");
+        assert_eq!(
+            meta_content(&body, "og:image:alt"),
+            meta_content(&body, "og:title"),
+            "{uri} at {now}: alt and title"
+        );
+        let path = card.strip_prefix(PUBLIC_URL).unwrap();
+        let served = get(fetched("code_1_open.json"), path).await;
+        assert_eq!(served.status(), StatusCode::OK, "{path} is served");
     }
 }
 
