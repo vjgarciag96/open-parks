@@ -548,6 +548,21 @@ table {
   margin-top: 2rem;
 }
 
+/* Inside the alerts card, under the details. */
+.alerts .telegram {
+  margin-top: 0;
+  padding: 0.9rem 0 0.4rem;
+  border-top: 1px solid var(--hairline);
+  text-align: center;
+}
+
+.telegram-hint {
+  padding-bottom: 1rem;
+  font-size: 0.82rem;
+  color: var(--faint);
+  text-align: center;
+}
+
 .telegram a {
   display: inline-flex;
   align-items: center;

@@ -178,7 +178,8 @@ impl Bot {
     }
 
     fn command(&self, text: &str) -> Option<Command> {
-        let word = text.split_whitespace().next()?.strip_prefix('/')?;
+        let mut words = text.split_whitespace();
+        let word = words.next()?.strip_prefix('/')?;
         let (name, addressee) = match word.split_once('@') {
             Some((name, addressee)) => (name, Some(addressee)),
             None => (word, None),
@@ -186,7 +187,12 @@ impl Bot {
         if addressee.is_some_and(|addressee| !addressee.eq_ignore_ascii_case(&self.username)) {
             return None;
         }
-        Command::named(name)
+        match Command::named(name)? {
+            // The page's link opens the bot with this, so a tap on Start
+            // subscribes.
+            Command::Start if words.next() == Some("subscribe") => Some(Command::Subscribe),
+            command => Some(command),
+        }
     }
 
     async fn reply(

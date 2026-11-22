@@ -91,6 +91,12 @@ pub(crate) struct Strings {
     /// As `checked_at`, on an earlier day.
     pub(crate) checked_on: fn(Date, Time) -> String,
     pub(crate) telegram: &'static str,
+    /// The Telegram button during an alert's closure.
+    pub(crate) telegram_reopen: &'static str,
+    /// The Telegram button while an alert's closure is expected.
+    pub(crate) telegram_close_or_reopen: &'static str,
+    /// Under the Telegram button that subscribes in one tap.
+    pub(crate) telegram_hint: &'static str,
     pub(crate) source_lead: &'static str,
     pub(crate) source_link: &'static str,
     pub(crate) licence_url: &'static str,
@@ -508,6 +514,9 @@ const ES: Strings = Strings {
         )
     },
     telegram: "Recibe avisos en Telegram",
+    telegram_reopen: "Avísame cuando reabra",
+    telegram_close_or_reopen: "Avísame si cierra o reabre",
+    telegram_hint: "Se abrirá Telegram. Pulsa Iniciar para suscribirte.",
     source_lead: "Elaborado a partir de ",
     source_link: "datos del Ayuntamiento de Madrid",
     licence_url: "https://creativecommons.org/licenses/by/4.0/deed.es",
@@ -686,6 +695,9 @@ const EN: Strings = Strings {
         )
     },
     telegram: "Get notified on Telegram",
+    telegram_reopen: "Notify me when it reopens",
+    telegram_close_or_reopen: "Notify me if it closes or reopens",
+    telegram_hint: "Telegram will open. Tap Start to subscribe.",
     source_lead: "Based on ",
     source_link: "data from Madrid City Council (Ayuntamiento de Madrid)",
     licence_url: "https://creativecommons.org/licenses/by/4.0/deed.en",
