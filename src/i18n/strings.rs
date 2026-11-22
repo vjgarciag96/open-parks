@@ -1,8 +1,11 @@
+use std::borrow::Cow;
+
 use jiff::SignedDuration;
 use jiff::civil::{Date, Time, Weekday};
 
 use super::Lang;
 use crate::park::headline::{Alerts, Answer, ScheduleLine};
+use crate::park::incident::{ClockTime, IncidentDates, IncidentHours};
 use crate::park::schedule::Season;
 use crate::park::status::{ParkStatus, ReopeningForecast, Verdict};
 
@@ -49,7 +52,11 @@ pub(crate) struct Strings {
     pub(crate) months: [&'static str; 12],
     pub(crate) season_hours: fn(&Season) -> String,
     pub(crate) dates: &'static str,
+    /// SIGMA's incident dates, translated where they can be read.
+    pub(crate) dates_text: for<'a> fn(&'a str) -> Cow<'a, str>,
     pub(crate) incident_hours: &'static str,
+    /// SIGMA's incident hours, translated where they can be read.
+    pub(crate) hours_text: for<'a> fn(&'a str) -> Cow<'a, str>,
     pub(crate) reopening: &'static str,
     pub(crate) forecast: fn(ReopeningForecast) -> &'static str,
     pub(crate) notes: &'static str,
@@ -71,7 +78,7 @@ impl Strings {
     pub(crate) fn details<'a>(
         &self,
         status: &'a ParkStatus,
-    ) -> impl Iterator<Item = (&'static str, &'a str)> {
+    ) -> impl Iterator<Item = (&'static str, Cow<'a, str>)> {
         // SIGMA can fill in the dates and hours even with no incident, with
         // what looks like its last bulletin, which reads as an unexplained
         // incident under an open park.
@@ -80,10 +87,15 @@ impl Strings {
             _ => (status.dates.as_deref(), status.hours.as_deref()),
         };
         [
-            (self.dates, dates),
-            (self.incident_hours, hours),
-            (self.reopening, status.reopening.map(self.forecast)),
-            (self.notes, status.notes.as_deref()),
+            (self.dates, dates.map(self.dates_text)),
+            (self.incident_hours, hours.map(self.hours_text)),
+            (
+                self.reopening,
+                status
+                    .reopening
+                    .map(|forecast| Cow::Borrowed((self.forecast)(forecast))),
+            ),
+            (self.notes, status.notes.as_deref().map(Cow::Borrowed)),
         ]
         .into_iter()
         .filter_map(|(term, description)| Some((term, description?)))
@@ -139,6 +151,48 @@ fn hours_and_minutes(time: Time) -> String {
 /// As SIGMA writes its dates, which the page shows too.
 fn day_month_year(date: Date) -> String {
     format!("{:02}/{:02}/{}", date.day(), date.month(), date.year())
+}
+
+/// SIGMA's text as it is, for the language it's written in.
+fn as_written(text: &str) -> Cow<'_, str> {
+    Cow::Borrowed(text)
+}
+
+const EN_SHORT_MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+fn en_date(date: Date) -> String {
+    let month = EN_SHORT_MONTHS[usize::try_from(date.month() - 1).expect("months start at 1")];
+    format!("{} {month} {}", date.day(), date.year())
+}
+
+fn en_clock_time(time: ClockTime) -> String {
+    match time.is_midnight_end() {
+        true => "midnight".to_owned(),
+        false => format!("{:02}:{:02}", time.hour(), time.minute()),
+    }
+}
+
+fn en_dates(text: &str) -> Cow<'_, str> {
+    match IncidentDates::read(text) {
+        Some(IncidentDates::Day(day)) => Cow::Owned(en_date(day)),
+        Some(IncidentDates::Range(first, last)) => {
+            Cow::Owned(format!("{} – {}", en_date(first), en_date(last)))
+        }
+        None => Cow::Borrowed(text),
+    }
+}
+
+fn en_hours(text: &str) -> Cow<'_, str> {
+    match IncidentHours::read(text) {
+        Some(hours) => Cow::Owned(format!(
+            "{} to {}",
+            en_clock_time(hours.from),
+            en_clock_time(hours.to)
+        )),
+        None => Cow::Borrowed(text),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -223,7 +277,9 @@ const ES: Strings = Strings {
     ],
     season_hours: |season| format!("{}:00–{}:00", season.opens, season.closes),
     dates: "Fechas de la incidencia",
+    dates_text: as_written,
     incident_hours: "Horario de la incidencia",
+    hours_text: as_written,
     reopening: "Reapertura",
     forecast: |forecast| match forecast {
         ReopeningForecast::AfterInspections => "Cuando terminen las inspecciones",
@@ -319,14 +375,16 @@ const EN: Strings = Strings {
         closes => format!("{}:00–{closes}:00", season.opens),
     },
     dates: "Incident dates",
+    dates_text: en_dates,
     incident_hours: "Incident hours",
+    hours_text: en_hours,
     reopening: "Reopening",
     forecast: |forecast| match forecast {
         ReopeningForecast::AfterInspections => "Once inspections finish",
         ReopeningForecast::SeeNotes => "See the notes",
         ReopeningForecast::Unknown(_) => "Unknown",
     },
-    notes: "Notes",
+    notes: "Notes (City Council’s text, in Spanish)",
     updated: "Updated ",
     updated_at: |date, time| {
         format!(
