@@ -15,7 +15,7 @@ use crate::i18n::{Age, Strings};
 use crate::open_meteo;
 use crate::park::headline::{Alerts, Headline};
 use crate::park::schedule;
-use crate::park::status::{ParkStatus, Verdict};
+use crate::park::status::{AlertClosure, ParkStatus, Verdict};
 use crate::sigma::{Fetched, Latest};
 use crate::web::public_url::PublicUrl;
 use crate::web::structured_data;
@@ -167,32 +167,24 @@ fn retiro_status(
     let strings = lang.strings();
     let schedule = schedule::retiro(now);
     let next_hours = next_hours::card(strings, &forecast.borrow(), now);
-    match &*latest.borrow() {
-        Ok(fetched) => {
-            let alerts = Alerts::Checked(fetched.status.verdict_at(now));
-            let headline = Headline::new(alerts, &schedule);
-            render(
-                lang,
-                site,
-                now,
-                &headline,
-                tone(alerts),
-                details(strings, fetched, now),
-                next_hours,
-            )
-            .into_response()
-        }
+    let latest = latest.borrow();
+    let headline = Headline::at(
+        latest.as_ref().ok().map(|fetched| &fetched.status),
+        &schedule,
+        now,
+    );
+    match &*latest {
+        Ok(fetched) => render(
+            lang,
+            site,
+            now,
+            &headline,
+            details(strings, fetched, now),
+            next_hours,
+        )
+        .into_response(),
         Err(error) => {
-            let headline = Headline::new(Alerts::Unchecked, &schedule);
-            let page = render(
-                lang,
-                site,
-                now,
-                &headline,
-                tone(Alerts::Unchecked),
-                html! {},
-                next_hours,
-            );
+            let page = render(lang, site, now, &headline, html! {}, next_hours);
             (error.gateway_status(), page).into_response()
         }
     }
@@ -253,16 +245,35 @@ fn status_details(strings: &Strings, status: &ParkStatus) -> Markup {
     }
 }
 
+/// What the answer leaves to say of an alert's closure, a line each.
+fn closure_lines(strings: &Strings, headline: &Headline) -> Vec<String> {
+    match headline.closure {
+        Some(closure) if closure.under_way() => {
+            let end = closure.end().and_then(|end| strings.closure_end(end));
+            [Some(strings.closure_cause.to_owned()), end]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        _ => headline
+            .expected_closure_window()
+            .map(|window| (strings.closure_expected_between)(window.from, window.to))
+            .into_iter()
+            .collect(),
+    }
+}
+
 fn render(
     lang: Lang,
     site: &Site,
     now: Timestamp,
     headline: &Headline,
-    tone: Tone,
     details: Markup,
     next_hours: Markup,
 ) -> Markup {
     let strings = lang.strings();
+    let tone = tone(headline.alerts);
+    let no_closure_hours = headline.closure.is_some_and(AlertClosure::hours_missing);
     let answer = strings.answer(headline.answer);
     let preview_title = format!("{} {}", strings.question, strings.answer(headline.preview));
     html! {
@@ -328,6 +339,9 @@ fn render(
                             " "
                             (answer)
                         }
+                        @for line in closure_lines(strings, headline) {
+                            p.closure { (line) }
+                        }
                         @if let Some(schedule) = headline.schedule {
                             p.now { (strings.schedule_line(schedule)) }
                         }
@@ -336,6 +350,9 @@ fn render(
                             p.alert.(tone.class) {
                                 span.icon aria-hidden="true" { (tone.icon) }
                                 (strings.alert_line(headline.alerts))
+                            }
+                            @if no_closure_hours {
+                                p.no-closure-hours { (strings.no_closure_hours) }
                             }
                             (details)
                         }

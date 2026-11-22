@@ -119,6 +119,7 @@ impl IncidentHours {
 pub(crate) struct Window {
     start: Timestamp,
     end: Timestamp,
+    hours: IncidentHours,
 }
 
 impl Window {
@@ -132,11 +133,29 @@ impl Window {
         }
         let start = hours.from.on(day)?;
         let end = hours.to.on(day)?;
-        (start < end).then_some(Window { start, end })
+        (start < end).then_some(Window { start, end, hours })
     }
 
     pub(crate) fn contains(self, now: Timestamp) -> bool {
         self.start <= now && now < self.end
+    }
+
+    pub(crate) fn has_ended(self, now: Timestamp) -> bool {
+        self.end <= now
+    }
+
+    pub(crate) fn ends_by(self, time: Timestamp) -> bool {
+        self.end <= time
+    }
+
+    /// Whether it starts on `day` in Madrid.
+    pub(crate) fn starts_on(self, day: Date) -> bool {
+        self.start.to_zoned(madrid()).date() == day
+    }
+
+    /// The hours as SIGMA gave them, to put the window into words.
+    pub(crate) fn hours(self) -> IncidentHours {
+        self.hours
     }
 }
 

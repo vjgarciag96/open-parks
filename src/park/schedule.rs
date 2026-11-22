@@ -112,7 +112,8 @@ fn opening(day: Date) -> Zoned {
     madrid_time(day, Season::of(day).opens)
 }
 
-fn closing(day: Date) -> Zoned {
+/// When the park closes on `day`, which is the next day for midnight.
+pub(crate) fn closing(day: Date) -> Zoned {
     match Season::of(day).closes {
         24 => madrid_time(
             day.tomorrow().expect("the park's hours are within range"),
