@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{Path, RawQuery, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::get;
+use axum::routing::{MethodRouter, get};
 use jiff::{SignedDuration, Timestamp};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
 use tokio::sync::watch;
@@ -71,8 +71,11 @@ pub fn router(
     Router::new()
         .route("/", status_in(Lang::Es))
         // Where the Spanish page was before it moved to the root.
-        .route("/es", get(async || Redirect::permanent(Lang::Es.path())))
+        .route("/es", redirect_to(Lang::Es.path()))
+        .route("/es/", redirect_to(Lang::Es.path()))
         .route("/en", status_in(Lang::En))
+        // A trailing slash is a common way to type either address.
+        .route("/en/", redirect_to(Lang::En.path()))
         .route(
             "/robots.txt",
             get(async |State(state): State<PageState>| robots_txt(&state.site)),
@@ -98,6 +101,15 @@ pub fn router(
                 public_url,
             }),
         })
+}
+
+/// A permanent redirect to `path`, keeping the query string, which may carry
+/// a campaign's tags.
+fn redirect_to(path: &'static str) -> MethodRouter<PageState> {
+    get(async move |RawQuery(query): RawQuery| match query {
+        Some(query) => Redirect::permanent(&format!("{path}?{query}")),
+        None => Redirect::permanent(path),
+    })
 }
 
 fn robots_txt(site: &Site) -> String {

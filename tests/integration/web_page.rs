@@ -624,6 +624,40 @@ async fn the_old_spanish_address_redirects_permanently_to_the_root() {
 }
 
 #[tokio::test]
+async fn the_english_address_with_a_trailing_slash_redirects_permanently_without_it() {
+    let response = get(fetched("code_1_open.json"), "/en/").await;
+
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(response.headers()[header::LOCATION], "/en");
+}
+
+#[tokio::test]
+async fn the_old_spanish_address_with_a_trailing_slash_redirects_permanently_to_the_root() {
+    let response = get(fetched("code_1_open.json"), "/es/").await;
+
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(response.headers()[header::LOCATION], "/");
+}
+
+#[tokio::test]
+async fn each_redirect_keeps_the_query_string() {
+    let cases = [
+        ("/en/?x=1", "/en?x=1"),
+        ("/es/?x=1", "/?x=1"),
+        ("/es?x=1", "/?x=1"),
+    ];
+    for (uri, location) in cases {
+        let response = get(fetched("code_1_open.json"), uri).await;
+
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            location,
+            "redirect from {uri}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn each_page_links_to_the_other_language() {
     for timeout in [false, true] {
         let latest = || match timeout {
