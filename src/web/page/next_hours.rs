@@ -4,6 +4,7 @@ use maud::{Markup, PreEscaped, html};
 use crate::i18n::{Age, Strings};
 use crate::open_meteo;
 use crate::park::forecast::{Conditions, HourForecast, HourLabel, NextHour, rounded};
+use crate::park::incident::IncidentHours;
 
 use super::weather_icon;
 
@@ -14,7 +15,14 @@ const MISSING: &str = "–";
 const UMBRELLA: &str = include_str!("../../../assets/umbrella.svg");
 const GUST: &str = include_str!("../../../assets/gust.svg");
 
-pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timestamp) -> Markup {
+/// `closure_window` is the window of an alert's closure, under way or
+/// expected, which the strip itself leaves out: it shows the usual hours.
+pub(super) fn card(
+    strings: &Strings,
+    forecast: &open_meteo::Latest,
+    now: Timestamp,
+    closure_window: Option<IncidentHours>,
+) -> Markup {
     let hours = forecast
         .as_ref()
         .map_or(Vec::new(), |fetched| fetched.forecast.next_hours(now));
@@ -22,6 +30,9 @@ pub(super) fn card(strings: &Strings, forecast: &open_meteo::Latest, now: Timest
         section.next-hours {
             h2 { (strings.next_hours) }
             @if let (Some(fetched), false) = (forecast, hours.is_empty()) {
+                @if let Some(window) = closure_window {
+                    p.alert-closure { ((strings.alert_closure_note)(window.from, window.to)) }
+                }
                 div.forecast {
                     (keys())
                     ol.hours tabindex="0" aria-label=(strings.hourly_forecast) {
@@ -126,7 +137,10 @@ fn hour_label(strings: &Strings, hour: &HourForecast, label: HourLabel) -> Marku
 
 fn closed_block(strings: &Strings, from: &Zoned, until: &Zoned) -> Markup {
     html! {
-        li.closed { ((strings.closed_block)(from.hour(), until.hour())) }
+        li.closed {
+            span { (strings.closed_by_schedule) }
+            span { (from.hour()) "–" (until.hour()) }
+        }
     }
 }
 
