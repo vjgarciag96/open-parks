@@ -956,7 +956,7 @@ async fn each_page_has_a_title_and_description_in_its_language() {
     let cases = [
         (
             "/",
-            "<title>¿Está abierto hoy el Parque del Retiro de Madrid?</title>",
+            "<title>¿Está abierto el Retiro hoy? Parque del Retiro, Madrid</title>",
             r#"<meta name="description" content="Consulta si el Parque del Retiro de Madrid está abierto, su horario y los cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento.">"#,
         ),
         (

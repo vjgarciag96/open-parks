@@ -165,7 +165,7 @@ impl Age {
 }
 
 const ES: Strings = Strings {
-    title: "¿Está abierto hoy el Parque del Retiro de Madrid?",
+    title: "¿Está abierto el Retiro hoy? Parque del Retiro, Madrid",
     description: "Consulta si el Parque del Retiro de Madrid está abierto, su horario y los cierres o restricciones por alerta meteorológica, con datos del Ayuntamiento.",
     park_name: "Parque del Retiro",
     question: "¿Está abierto el Retiro?",
